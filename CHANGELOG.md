@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Palette animation on 32-bit desktops: the host reports a 256-colour palette
+  display and replays the game's 8-bit blits when it animates the palette
+  (`src/runtime/palette.c`). The "not running in 256 colors" notice no longer
+  appears, so its registry pre-answer is gone.
+
 ## [0.2.0] - 2026-09-29
 
 ### Added

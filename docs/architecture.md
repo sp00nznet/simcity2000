@@ -96,6 +96,21 @@ The lock is released only around native calls. Guest code that spins waiting
 for another guest thread without calling Windows would deadlock; nothing has
 yet.
 
+## Palette animation (`palette.c`)
+
+The game draws into 8-bit DIBs and animates traffic, lights and the like with
+`AnimatePalette`, which only changes the screen on a 256-colour palette
+display. Told the truth about a 32-bit desktop, it switches to fixed-colour
+tiles and warns that "some animations won't display correctly".
+
+So the host tells it what it expects: `GetDeviceCaps` on a display DC reports
+a palette device (`RC_PALETTE`, 8 bits per pixel, 256 entries, 20 reserved).
+Then the host plays the palette hardware. Every `BitBlt`/`StretchBlt` from an
+8-bit DIB to a window is remembered, one per destination rectangle, in order.
+When the game calls `AnimatePalette`, the new entries are written into each
+remembered source DIB's colour table and the remembered blits are replayed,
+oldest first. On a real 8-bit display none of this runs.
+
 ## Headless mode and recording (`capture.c`)
 
 `--headless` creates a private Win32 desktop and puts the game thread on it.

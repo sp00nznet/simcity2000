@@ -28,6 +28,8 @@ recompiled.
 | Title screen and main menu | Start New City: a generated map |
 | ![A new city, running](docs/screenshots/in-game.png) | ![NYC](docs/screenshots/nyc.png) |
 | February 1900: toolbar up, "Power Plant Needed" | `CITIES\NYC.SC2`, loaded and simulating |
+| ![Palette animation](docs/screenshots/animation.gif) | |
+| Palette animation, emulated on a 32-bit desktop | |
 
 | Area | State |
 |---|---|
@@ -37,7 +39,7 @@ recompiled.
 | Loading a saved city (from the command line) | Working |
 | Simulation | Runs: a full year of NYC, no faults |
 | Building with the tools | Not yet exercised |
-| Palette animation (water, lights) | Not emulated: modern desktops are 32-bit colour |
+| Palette animation (traffic, lights) | Working: the host emulates a 256-colour palette display |
 | Intro movie | Skipped — the game looks for the CD, and says so |
 | Sound and music | Not yet exercised |
 | Saving | Not yet exercised |
