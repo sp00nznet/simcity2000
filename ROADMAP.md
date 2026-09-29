@@ -2,8 +2,9 @@
 
 ## Next
 
-- **Speed.** The recompiled simulation falls about a month behind the original
-  over five minutes. Profile the hot sim loops; try `RECOMP_LOCAL_REGS`.
+- **Speed.** The recompiled simulation fell about a month behind the original
+  over five minutes, but the machine was saturated at the time. Re-measure on
+  an idle machine before profiling anything.
 - **A city that grows**, as a scripted scenario, to watch growth and traffic
   against `--native`.
 - **The scenarios** (`Load Scenario`) and the disasters menu.

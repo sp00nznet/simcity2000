@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- A hero GIF for the README: NYC, recompiled, with a plane over the harbour.
+
 ## [0.3.0] - 2026-09-29
 
 ### Added

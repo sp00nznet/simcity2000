@@ -1,5 +1,7 @@
 # SimCity 2000 — Static Recompilation
 
+![NYC running recompiled: a plane over the harbour, traffic, the ferry](docs/screenshots/hero.gif)
+
 Static recompilation of **SimCity 2000** (Maxis, Windows 95 edition, `SIMCITY.EXE`
 built 1996-03-07) from its shipping binary to native C. Every function in the
 game — the simulation, the isometric renderer, and the statically linked MFC
@@ -46,8 +48,8 @@ the game's own code, recompiled.
 | Loading a city from the command line | Working |
 | Palette animation (traffic, lights) | Working: the host emulates a 256-colour palette display |
 | Intro movie | Skipped — the game looks for the CD, and says so |
-| Sound and music | Not yet exercised |
-| Speed | The simulation runs a little slower than the original (a month behind over five minutes) |
+| Sound and music | Working in play (not checked by the headless runs) |
+| Speed | Measured a month behind the original over five minutes, on a machine that was saturated by other builds at the time — to be re-measured |
 
 Needs two pcrecomp fixes that are in review: pcrecomp#6 (`lift32` narrow
 `mul`/`div`: without it the simulation faults when the first newspaper closes)
