@@ -14,13 +14,15 @@ the lifter runs on your machine and writes the C into a gitignored folder.
 
 ## Status
 
-**v0.2.0 — alpha. It plays: new cities and saved ones, with the simulation running.**
+**v0.3.0 — alpha. It plays: build a city, save it, load it, watch it animate.**
 
-The recompiled program runs the CRT and MFC startup, shows the title screen,
-generates new maps, loads saved cities, and runs the simulation: NYC, left
-running headless for 200 seconds, advanced a full game year with no fault and
-no unresolved call. Everything on screen below is the game's own code,
-recompiled.
+The recompiled program generates maps, takes building tools (power plants,
+zones, roads), saves and loads cities through the game's own File dialogs,
+and animates its palette on a 32-bit desktop. Checked against the original:
+the same saved city, run for the same time in the original `SIMCITY.EXE` and
+in the recompiled one, ends with the same funds to the dollar, and a city saved
+by the recompiled game loads in the original. Everything on screen below is
+the game's own code, recompiled.
 
 | | |
 |---|---|
@@ -28,25 +30,30 @@ recompiled.
 | Title screen and main menu | Start New City: a generated map |
 | ![A new city, running](docs/screenshots/in-game.png) | ![NYC](docs/screenshots/nyc.png) |
 | February 1900: toolbar up, "Power Plant Needed" | `CITIES\NYC.SC2`, loaded and simulating |
-| ![Palette animation](docs/screenshots/animation.gif) | |
-| Palette animation, emulated on a 32-bit desktop | |
+| ![Palette animation](docs/screenshots/animation.gif) | ![Building](docs/screenshots/building.png) |
+| Palette animation, emulated on a 32-bit desktop | A coal plant, zones and roads, placed with the tools |
+| ![Save dialog](docs/screenshots/save-dialog.png) | |
+| File > Save City As, in today's common dialog | |
 
 | Area | State |
 |---|---|
 | Lift | 7,045 functions, 0 lift errors, ~522K lines of C |
 | Startup, MFC, dialogs, menus, toolbar | Working |
 | Terrain generation, map rendering | Working |
-| Loading a saved city (from the command line) | Working |
-| Simulation | Runs: a full year of NYC, no faults |
-| Building with the tools | Not yet exercised |
+| Building: power plants, power lines, zones, roads | Working |
+| Simulation | Matches the original: same save, same funds after the same run |
+| Save City As, Load City (File dialogs) | Working, with a compatibility fix the original also needs |
+| Loading a city from the command line | Working |
 | Palette animation (traffic, lights) | Working: the host emulates a 256-colour palette display |
 | Intro movie | Skipped — the game looks for the CD, and says so |
 | Sound and music | Not yet exercised |
-| Saving | Not yet exercised |
+| Speed | The simulation runs a little slower than the original (a month behind over five minutes) |
 
-Needs pcrecomp with the `lift32` narrow `mul`/`div` fix (pcrecomp#6, branch
-`fix/lift32-narrow-muldiv`); without it the simulation faults as soon as the
-first newspaper closes.
+Needs two pcrecomp fixes that are in review: pcrecomp#6 (`lift32` narrow
+`mul`/`div`: without it the simulation faults when the first newspaper closes)
+and pcrecomp#8 (a `rep` compare with ECX = 0: without it the simulation hangs
+in `strstr`). Build against a pcrecomp checkout that has both, via `PCRECOMP`
+(below).
 
 ## Getting Started
 
@@ -63,8 +70,18 @@ Prerequisites, all on Windows 10 or 11:
 - Python 3.11+ with `capstone` and `pefile` (`py -3 -m pip install capstone pefile`)
 - IDA Pro 9.x with idalib, for the function catalog (see [ROADMAP](ROADMAP.md))
 - ffmpeg on `PATH`, only for `--record`
-- A checkout of [pcrecomp](https://github.com/sp00nznet/pcrecomp) next to this
-  one (`..\tools`), or `-DPCRECOMP=<path>` when configuring
+- A checkout of [pcrecomp](https://github.com/sp00nznet/pcrecomp) with #6 and
+  #8, either next to this one (`..\tools`) or anywhere, named by the
+  `PCRECOMP` environment variable (both `run_lift.py` and `tools\build.cmd`
+  read it). Until they merge, make one from the two PR branches:
+  ```
+  git -C ..\tools fetch origin
+  git -C ..\tools worktree add ..\simcity2000\work\pcrecomp origin/fix/lift32-narrow-muldiv
+  git -C work\pcrecomp merge origin/fix/lift32-rep-ecx0-flags
+  set PCRECOMP=%CD%\work\pcrecomp
+  ```
+  The merge stops on `CHANGELOG.md` and `tools/lift/difftest.py`; both sides
+  are additions, so keep both and `git commit`.
 
 1. Copy the disc's `WIN95\SC2K` folder into `game\`, so that
    `game\SIMCITY.EXE` exists.
@@ -95,27 +112,36 @@ A one-click `Setup.cmd` quick start is on the [roadmap](ROADMAP.md).
 
 ```
 build\sc2k.exe [--headless] [--record out.mp4] [--fps N] [--seconds N]
-               [--input SCRIPT] [path\to\SIMCITY.EXE] [game arguments...]
+               [--input SCRIPT] [--native] [path\to\SIMCITY.EXE] [game arguments...]
 ```
 
 - `--headless` runs the game on a private desktop: it runs and paints, but
-  nothing appears on your screen. Works over RDP.
+  nothing appears on your screen. Works over RDP. The game's frame is a fixed
+  1600×960 there, so scripted coordinates do not depend on your resolution.
 - `--record out.mp4` films every window of the game through ffmpeg.
 - `--seconds N` exits after N seconds.
 - Anything after the game's path goes to the game; a city file opens that
   city: `build\sc2k.exe game\SIMCITY.EXE CITIES\NYC.SC2`.
-- `--input "22:click 902,384; 34:click 901,519"` posts clicks (and `T:key VK`
-  key presses) at the given times — how the screenshots above were taken:
+- `--native` runs the **original** `SIMCITY.EXE` instead, on the same desktop
+  with the same recorder and script: the reference to compare against.
+- `--input SCRIPT` plays scripted input, `T:verb args` separated by `;`, with T
+  in seconds: `click X,Y`, `press X,Y,MS` (hold, for a tool's variants menu),
+  `drag X1,Y1,X2,Y2` (zones, roads), `key VK`, `type TEXT`, `command ID` (a menu
+  item, e.g. `0x8026` Save City As, `0x8021` Load City), and `wait TITLE` (until
+  a window with that title shows; later steps count from then).
+
+Save the current city as TESTCITY, headless:
 
 ```
-build\sc2k.exe --headless --record city.mp4 --seconds 70 ^
-    --input "22:click 902,384; 34:click 901,519" game\SIMCITY.EXE
+build\sc2k.exe --headless --seconds 60 ^
+    --input "35:command 0x8026; 36:wait Save As; 38:type TESTCITY; 40:key 13" ^
+    game\SIMCITY.EXE game\DEFAULT.SC2
 ```
 
 Diagnostics, as environment variables: `SC2K_APITRACE=1` logs every Win32 call
-by name; `SC2K_WATCH=1` prints where the guest is once a second;
-`SC2K_REGTRACE=1` logs registry access; `SC2K_CAPTRACE=1` lists the game's
-windows during a recording.
+by name; `SC2K_CBTRACE=1` every call from Windows into the game;
+`SC2K_WATCH=1` prints where the guest is once a second; `SC2K_REGTRACE=1` logs
+registry access; `SC2K_CAPTRACE=1` lists the game's windows during a recording.
 
 Settings live where the game always kept them, under
 `HKEY_CURRENT_USER\Software\Maxis\SimCity 2000`. On first run the host fills in

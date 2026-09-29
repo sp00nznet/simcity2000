@@ -12,6 +12,7 @@
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>
+#include <commdlg.h>
 
 #define GUEST_MODULE ((HMODULE)0x00400000)
 
@@ -129,7 +130,67 @@ void registry_defaults(void) {
     }
 }
 
+/* The File dialogs. MFC 4 finds its CFileDialog's window with a CBT hook: it
+ * attaches the C++ object to the first window created on the thread after it
+ * arms the hook, which on Windows 95 was the dialog. Today's common dialog
+ * starts COM first, and the first window is COM's hidden
+ * OleMainThreadWndClass (then a shell WorkerW); MFC attaches the dialog object
+ * to that, and the first message to the real dialog dereferences a CWnd that
+ * does not exist. The original SIMCITY.EXE crashes the same way on Windows 11.
+ *
+ * So for the length of the call a second CBT hook sits in front of MFC's and
+ * hides every window creation but a dialog's (#32770) from it. Hooks run
+ * newest first, and returning without CallNextHookEx lets the window be
+ * created without MFC hearing of it. */
+static HHOOK g_dlg_filter;
+
+static LRESULT CALLBACK dialogs_only(int code, WPARAM w, LPARAM l) {
+    if (code == HCBT_CREATEWND) {
+        char cls[16];
+        if (!GetClassNameA((HWND)w, cls, sizeof cls) || strcmp(cls, "#32770")) return 0;
+    }
+    return CallNextHookEx(g_dlg_filter, code, w, l);
+}
+
+/* The game's filter is "Simcity files (*.sc2) ", " *.sc2 " -- padded with
+ * spaces, which Windows 95 ignored. Today the pattern matches no file, and its
+ * extension becomes "sc2 ": a city typed as TESTCITY was saved as
+ * "testcity.sc2 .sc2". Hand the dialog a copy with each string trimmed. */
+static const char *trimmed_filter(const char *f, char *buf, size_t cap) {
+    size_t n = 0;
+    for (; f && *f; f += strlen(f) + 1) {
+        const char *a = f, *z = f + strlen(f);
+        while (*a == ' ') a++;
+        while (z > a && z[-1] == ' ') z--;
+        if (n + (size_t)(z - a) + 2 > cap) return NULL;
+        memcpy(buf + n, a, z - a);
+        n += z - a;
+        buf[n++] = 0;
+    }
+    buf[n] = 0;
+    return buf;
+}
+
+static BOOL file_dialog(BOOL (WINAPI *fn)(LPOPENFILENAMEA), LPOPENFILENAMEA o) {
+    char buf[1024];
+    LPCSTR filter = o->lpstrFilter;
+    const char *t = trimmed_filter(filter, buf, sizeof buf);
+    if (t) o->lpstrFilter = t;
+    HHOOK outer = g_dlg_filter;       /* a dialog could open another */
+    g_dlg_filter = SetWindowsHookExA(WH_CBT, dialogs_only, NULL, GetCurrentThreadId());
+    BOOL r = fn(o);
+    if (g_dlg_filter) UnhookWindowsHookEx(g_dlg_filter);
+    g_dlg_filter = outer;
+    o->lpstrFilter = filter;
+    return r;
+}
+
+static BOOL WINAPI o_GetSaveFileNameA(LPOPENFILENAMEA o) { return file_dialog(GetSaveFileNameA, o); }
+static BOOL WINAPI o_GetOpenFileNameA(LPOPENFILENAMEA o) { return file_dialog(GetOpenFileNameA, o); }
+
 static const struct { const char *name; void *fn; } table[] = {
+    { "GetSaveFileNameA",   (void *)o_GetSaveFileNameA },
+    { "GetOpenFileNameA",   (void *)o_GetOpenFileNameA },
     { "RegOpenKeyExA",      (void *)o_RegOpenKeyExA },
     { "RegCreateKeyExA",    (void *)o_RegCreateKeyExA },
     { "RegQueryValueExA",   (void *)o_RegQueryValueExA },
@@ -142,10 +203,14 @@ static const struct { const char *name; void *fn; } table[] = {
 };
 
 void *palette_override(const char *name);   /* palette.c */
+void *input_override(const char *name);     /* input.c */
+void *capture_override(const char *name);   /* capture.c */
 
 void *override_for(const char *dll, const char *name) {
     (void)dll;
     void *p = palette_override(name);
+    if (!p) p = input_override(name);
+    if (!p) p = capture_override(name);
     if (p) return p;
     for (size_t i = 0; i < sizeof table / sizeof table[0]; i++)
         if (!strcmp(table[i].name, name)) return table[i].fn;

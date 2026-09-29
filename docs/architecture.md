@@ -111,6 +111,38 @@ When the game calls `AnimatePalette`, the new entries are written into each
 remembered source DIB's colour table and the remembered blits are replayed,
 oldest first. On a real 8-bit display none of this runs.
 
+## The File dialogs (`overrides.c`)
+
+MFC 4 attaches a `CFileDialog` to the first window created on the thread after
+it arms its CBT hook. On Windows 95 that was the dialog. Today's common dialog
+starts COM first, so the first window is COM's hidden `OleMainThreadWndClass`,
+and MFC attaches the dialog object to it; the first message to the real dialog
+then dereferences a `CWnd` that does not exist. The original `SIMCITY.EXE`
+crashes the same way on Windows 11.
+
+For the length of each `GetSaveFileNameA`/`GetOpenFileNameA` call the host puts
+a second CBT hook in front of MFC's that hides every window creation except a
+dialog's (`#32770`), so MFC sees what it saw in 1996. The game's filter string
+is also padded with spaces (`" *.sc2 "`), which Windows 95 ignored and today
+turns into a pattern that matches nothing and an extension of `"sc2 "`; the
+host hands the dialog a trimmed copy.
+
+## Scripted input and the oracle (`input.c`, `--native`)
+
+`--input` posts mouse and keyboard messages; `SendInput` only reaches the input
+desktop. The game also reads the live cursor and button state while a tool is
+dragged (`GetCursorPos`, `GetKeyState`, `GetAsyncKeyState`, `GetMessagePos`),
+and the real cursor never moves in a headless run, so while a script runs
+those four report a synthetic cursor that moves with the posted messages.
+Windows are hit-tested by the script itself, walking the game's windows in
+z-order, because `WindowFromPoint` kept answering with the main frame while a
+modal dialog was on top.
+
+`--native` runs the original `SIMCITY.EXE` on the same desktop under the same
+recorder and script (in a job object, so it ends with the host). It is how the
+recompiled simulation was checked: the same saved city, run for the same time
+in both, ends with the same funds.
+
 ## Headless mode and recording (`capture.c`)
 
 `--headless` creates a private Win32 desktop and puts the game thread on it.
@@ -121,5 +153,5 @@ you are looking at, which is what makes it safe to run over RDP.
 `PrintWindow` ten times a second and pipes raw frames to ffmpeg; when a capture
 is slow it repeats the frame so the video keeps wall-clock time.
 
-`--input` posts mouse and keyboard messages. `SendInput` only reaches the input
-desktop, which a headless run is never on.
+Headless, the game's frame is shown at a fixed 1600x960 instead of maximized,
+so scripted coordinates do not depend on the attached session's resolution.

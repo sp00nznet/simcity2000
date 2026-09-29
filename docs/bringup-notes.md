@@ -91,3 +91,38 @@ byte and word operands. Fixed in the toolkit (branch
 That is the triage loop for any crash: the crash report names the lifted
 function; `llvm-symbolizer` names the generated line; the comment on the line
 is the original instruction.
+
+## The simulation hung in `strstr`
+
+A new city ran for a few game months and froze. `SC2K_WATCH=1` showed the
+guest in `0x0048D280` with its call count no longer moving: the CRT's
+`strstr`. It ends its search when `repne scasb` runs with ECX = 0, which does
+no iterations and leaves the flags from the previous `repe cmpsb` (not equal).
+`lift32` published its loop temporaries instead, always "equal", so the search
+never ended. Fixed in the toolkit (pcrecomp#8) with difftest cases.
+
+## Save City As crashed -- the original too
+
+`AfxDlgProc` dereferenced NULL as soon as the Save dialog appeared.
+`--native` showed the original `SIMCITY.EXE` dying at the same point on
+Windows 11. `SC2K_CBTRACE=1` then showed the order of windows created after
+MFC armed its CBT hook:
+
+```
+[cb] 004A4167(00000003 0973189E ...)  OleMainThreadWndClass
+[cb] 004A4167(00000003 029806BC ...)  WorkerW
+[cb] 004A4167(00000003 0046011C ...)  #32770
+```
+
+MFC attaches its dialog object to the first of those. The fix is in
+`docs/architecture.md` (The File dialogs). The next problem was a file saved
+as `testcity.sc2 .sc2`: the dialog returned `TESTCITY.sc2 ` with a trailing
+space, because the game's filter pattern is `" *.sc2 "`.
+
+## "Nothing grows" was not a bug
+
+A small test city stayed empty for years, and it looked like a dead
+simulation. The same city saved and loaded in the original game stayed empty
+too, with the same funds -- that layout simply does not attract settlers in
+three years. The oracle (`--native`) answers questions like this in minutes;
+guessing at them does not.

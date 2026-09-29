@@ -2,17 +2,19 @@
 
 ## Next
 
-- **Build with the tools.** Zones, roads and power through `--input` (it needs
-  a drag verb), then let the city grow for a few game years.
-- **Saving**, and loading through the File dialog; the scenarios.
+- **Speed.** The recompiled simulation falls about a month behind the original
+  over five minutes. Profile the hot sim loops; try `RECOMP_LOCAL_REGS`.
+- **A city that grows**, as a scripted scenario, to watch growth and traffic
+  against `--native`.
+- **The scenarios** (`Load Scenario`) and the disasters menu.
 - **Sound and music**: `sndPlaySound` and MIDI through MCI, both pass through
   today and have not been checked.
 - **`Setup.cmd` quick start** (REPO_RULES section 5): check prerequisites, find
   the disc or ISO, run the steps below, leave a shortcut.
 - **Conformance harness** (REPO_RULES section 9): a fixed set of scripted
-  headless runs with a pass count, e.g. "reaches the menu", "generates terrain",
-  "January 1900 newspaper", compared frame-for-frame against reference captures
-  kept outside the repo.
+  headless runs with a pass count: "reaches the menu", "builds and saves a
+  city", "NYC after five minutes has the original's funds". `--native` gives
+  the reference values on the same machine, so no captures need to ship.
 
 ## Later
 

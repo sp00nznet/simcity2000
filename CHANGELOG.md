@@ -6,7 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-29
+
 ### Added
+
+- Building: power plants, power lines, zones and roads placed through scripted
+  input, which now keeps a synthetic cursor for the game's drag code.
+- Save City As and Load City through the game's File dialogs.
+- `--input` verbs `press`, `drag`, `type`, `command`, `wait`; headless runs show
+  the game frame at a fixed 1600x960.
+- `--native`: run the original `SIMCITY.EXE` under the same desktop, recorder and
+  script, as a reference. Same save, same run: same funds.
+- `SC2K_CBTRACE` diagnostic; `PCRECOMP` names the pcrecomp checkout to build with.
+
+### Fixed
+
+- The File dialogs no longer crash: MFC's CBT hook attached the dialog to COM's
+  hidden window (the original game crashes the same way on Windows 11).
+- Saved files are no longer named `name.sc2 .sc2`: the dialog filter is trimmed.
+- The simulation no longer hangs in `strstr` (needs pcrecomp#8).
 
 - Palette animation on 32-bit desktops: the host reports a 256-colour palette
   display and replays the game's 8-bit blits when it animates the palette

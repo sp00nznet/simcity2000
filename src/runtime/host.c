@@ -207,6 +207,8 @@ uint32_t guest_callback(uint32_t target, const uint32_t *args, uint32_t *popped)
     regs_t saved;
     regs_save(&saved);
     uint32_t outer = t_guest_esp;
+    if (!t_stack_top)
+        fprintf(stderr, "[host] thread %lu enters the game at 0x%08X\n", GetCurrentThreadId(), target);
     thread_guest_init(THREAD_STACK);
     uint32_t esp = (outer ? outer : t_stack_top) - 64;
     for (int i = ARG_WORDS - 1; i >= 0; i--) { esp -= 4; MEM32(esp) = args[i]; }
@@ -216,6 +218,14 @@ uint32_t guest_callback(uint32_t target, const uint32_t *args, uint32_t *popped)
     g_fs_base = t_tib;
     uint32_t result = 0;
     recomp_func_t fn = recomp_lookup(target);
+    static int cbtrace = -1;
+    if (cbtrace < 0) cbtrace = GetEnvironmentVariableA("SC2K_CBTRACE", NULL, 0) != 0;
+    if (cbtrace) {
+        char c0[48] = "", c1[48] = "";
+        if (IsWindow((HWND)(uintptr_t)args[0])) GetClassNameA((HWND)(uintptr_t)args[0], c0, sizeof c0);
+        if (IsWindow((HWND)(uintptr_t)args[1])) GetClassNameA((HWND)(uintptr_t)args[1], c1, sizeof c1);
+        fprintf(stderr, "[cb] %08X(%08X %08X %08X %08X) %s %s\n", target, args[0], args[1], args[2], args[3], c0, c1);
+    }
     if (fn) {
         fn();
         result = g_eax;
@@ -401,18 +411,58 @@ static int relaunch_reserved(void) {
     return (int)rc;
 }
 
+/* --native: run the ORIGINAL SIMCITY.EXE instead of the recompiled one, on the
+ * same (headless) desktop with the same recorder and input script. It is the
+ * oracle: when the recompiled game behaves oddly, the same scenario run
+ * natively says what it should have done. A job object ends the game with us. */
+void capture_target(DWORD pid);                            /* capture.c */
+void input_set_game_thread(DWORD tid);                     /* input.c */
+
+void input_start(const char *script);
+static int run_native(int headless, const char *input) {
+    char dir[MAX_PATH], cmd[sizeof g_guest_cmdline];
+    strcpy(dir, g_game_exe);
+    char *slash = strrchr(dir, '\\');
+    if (slash) *slash = 0;
+    strcpy(cmd, g_guest_cmdline);
+    STARTUPINFOA si = { sizeof si };
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_SHOWNORMAL;
+    if (headless) si.lpDesktop = "sc2k-headless";
+    PROCESS_INFORMATION pi;
+    HANDLE job = CreateJobObjectA(NULL, NULL);
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION lim = {0};
+    lim.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    SetInformationJobObject(job, JobObjectExtendedLimitInformation, &lim, sizeof lim);
+    if (!CreateProcessA(g_game_exe, cmd, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, dir, &si, &pi)) {
+        fprintf(stderr, "[host] cannot start %s natively (error %lu)\n", g_game_exe, GetLastError());
+        return 2;
+    }
+    AssignProcessToJobObject(job, pi.hProcess);
+    capture_target(pi.dwProcessId);
+    input_set_game_thread(pi.dwThreadId);
+    ResumeThread(pi.hThread);
+    input_start(input);
+    fprintf(stderr, "[host] running the original %s natively, pid %lu\n", g_game_exe, pi.dwProcessId);
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD rc = 0;
+    GetExitCodeProcess(pi.hProcess, &rc);
+    return (int)rc;
+}
+
 static void usage(void) {
-    fprintf(stderr, "usage: sc2k [--headless] [--record out.mp4] [--fps N] [--seconds N] [--input SCRIPT]\n"
+    fprintf(stderr, "usage: sc2k [--headless] [--record out.mp4] [--fps N] [--seconds N] [--input SCRIPT] [--native]\n"
                     "            [path/to/SIMCITY.EXE] [game arguments...]\n");
 }
 
 int main(int argc, char **argv) {
     if (!GetEnvironmentVariableA("SC2K_CHILD", NULL, 0)) return relaunch_reserved();
     const char *exe = "game/SIMCITY.EXE", *record = NULL, *input = NULL;
-    int headless = 0, fps = 10, i = 1;
+    int headless = 0, native = 0, fps = 10, i = 1;
     double seconds = 0;
     for (; i < argc && argv[i][0] == '-' && argv[i][1] == '-'; i++) {
         if (!strcmp(argv[i], "--headless")) headless = 1;
+        else if (!strcmp(argv[i], "--native")) native = 1;
         else if (!strcmp(argv[i], "--record") && i + 1 < argc) record = argv[++i];
         else if (!strcmp(argv[i], "--input") && i + 1 < argc) input = argv[++i];
         else if (!strcmp(argv[i], "--fps") && i + 1 < argc) fps = atoi(argv[++i]);
@@ -424,6 +474,15 @@ int main(int argc, char **argv) {
     int n = snprintf(g_guest_cmdline, sizeof g_guest_cmdline, "\"%s\"", g_game_exe);
     for (; i < argc && n < (int)sizeof g_guest_cmdline; i++)
         n += snprintf(g_guest_cmdline + n, sizeof g_guest_cmdline - n, " %s", argv[i]);
+
+    if (native) {
+        registry_defaults();
+        if (headless && !headless_init()) return 2;
+        if (record && !record_start(record, fps, seconds)) return 2;
+        exit_after(seconds);
+        int rc = run_native(headless, input);
+        return rc;
+    }
 
     /* Guest .text is non-executable; the callback trap needs DEP on. */
     SetProcessDEPPolicy(PROCESS_DEP_ENABLE);

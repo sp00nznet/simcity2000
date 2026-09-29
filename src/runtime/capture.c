@@ -10,7 +10,8 @@
  *
  * --record out.mp4 composites every visible top-level window of that desktop
  * (the game frame, its dialogs) with PrintWindow at a fixed rate and pipes the
- * frames to ffmpeg as raw BGRA. It works headless or not.
+ * frames to ffmpeg as raw BGRA. It works headless or not. Scripted input is
+ * input.c.
  */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -37,12 +38,19 @@ int headless_init(void) {
 }
 
 /* Called on the game thread before it creates any window. */
-static void input_game_thread(void);
+void input_game_thread(void);   /* input.c */
+
+HDESK headless_desktop(void) { return g_desk; }
+
 void headless_attach(void) {
     input_game_thread();
     if (g_desk && !SetThreadDesktop(g_desk))
         fprintf(stderr, "[capture] SetThreadDesktop failed (error %lu)\n", GetLastError());
 }
+
+/* Whose windows to film: ours, or the original game's under --native. */
+static DWORD g_target_pid;
+void capture_target(DWORD pid) { g_target_pid = pid; }
 
 typedef struct { HWND list[64]; int n, all; } wins_t;
 
@@ -50,7 +58,8 @@ static BOOL CALLBACK collect(HWND h, LPARAM p) {
     wins_t *w = (wins_t *)p;
     DWORD pid;
     GetWindowThreadProcessId(h, &pid);
-    if (pid == GetCurrentProcessId() && (IsWindowVisible(h) || w->all) && w->n < 64) w->list[w->n++] = h;
+    if (pid == (g_target_pid ? g_target_pid : GetCurrentProcessId()) && (IsWindowVisible(h) || w->all) && w->n < 64)
+        w->list[w->n++] = h;
     return TRUE;
 }
 
@@ -170,51 +179,24 @@ void exit_after(double seconds) {
         CreateThread(NULL, 0, timeout_thread, (LPVOID)(uintptr_t)(seconds * 1000), 0, NULL);
 }
 
-/* --input "T:click X,Y; T:key VK; ...": scripted input for headless runs.
- * At T seconds after start, post a left click to whatever window is at screen
- * point X,Y, or a key press (virtual-key code) to the game thread's focus
- * window. Posted, not injected: SendInput only reaches the input desktop,
- * which a headless run is never on. */
-static DWORD g_game_tid;
 
-static void input_game_thread(void) { g_game_tid = GetCurrentThreadId(); }
+/* A headless run gets a fixed-size game frame. The game maximizes its frame,
+ * so every coordinate in an --input script would depend on the resolution of
+ * whatever session happened to be attached (the same script missed every
+ * button when the desktop went from 1806x972 to 1920x1080). Headless, the
+ * frame is shown at HEADLESS_W x HEADLESS_H at the origin instead. */
+#define HEADLESS_W 1600
+#define HEADLESS_H 960
 
-static DWORD WINAPI input_thread(LPVOID arg) {
-    const char *s = arg;
-    if (g_desk) SetThreadDesktop(g_desk);
-    DWORD start = GetTickCount();
-    for (;;) {
-        double t;
-        char verb[16];
-        int a = 0, b = 0, used = 0;
-        while (*s == ' ' || *s == ';') s++;
-        if (!*s || sscanf(s, "%lf:%15[a-z] %d,%d%n", &t, verb, &a, &b, &used) < 3) break;
-        s += used;
-        while (*s && *s != ';') s++;
-        DWORD due = start + (DWORD)(t * 1000), now = GetTickCount();
-        if ((int)(due - now) > 0) Sleep(due - now);
-        if (!strcmp(verb, "click")) {
-            POINT pt = { a, b };
-            HWND h = WindowFromPoint(pt);
-            if (!h) { fprintf(stderr, "[input] nothing at %d,%d\n", a, b); continue; }
-            ScreenToClient(h, &pt);
-            LPARAM lp = MAKELPARAM(pt.x, pt.y);
-            PostMessageA(h, WM_MOUSEMOVE, 0, lp);
-            PostMessageA(h, WM_LBUTTONDOWN, MK_LBUTTON, lp);
-            PostMessageA(h, WM_LBUTTONUP, 0, lp);
-            fprintf(stderr, "[input] %.1fs click %d,%d -> %p\n", t, a, b, (void *)h);
-        } else if (!strcmp(verb, "key")) {
-            GUITHREADINFO gi = { sizeof gi };
-            GetGUIThreadInfo(g_game_tid, &gi);
-            HWND h = gi.hwndFocus ? gi.hwndFocus : gi.hwndActive;
-            PostMessageA(h, WM_KEYDOWN, a, 1);
-            PostMessageA(h, WM_KEYUP, a, 0xC0000001);
-            fprintf(stderr, "[input] %.1fs key 0x%X -> %p\n", t, a, (void *)h);
-        }
+static BOOL WINAPI o_ShowWindow(HWND h, int cmd) {
+    if (g_desk && cmd == SW_SHOWMAXIMIZED && !GetParent(h) && !GetWindow(h, GW_OWNER)) {
+        BOOL r = ShowWindow(h, SW_SHOWNORMAL);
+        SetWindowPos(h, NULL, 0, 0, HEADLESS_W, HEADLESS_H, SWP_NOZORDER | SWP_NOACTIVATE);
+        return r;
     }
-    return 0;
+    return ShowWindow(h, cmd);
 }
 
-void input_start(const char *script) {
-    if (script) CreateThread(NULL, 0, input_thread, (LPVOID)script, 0, NULL);
+void *capture_override(const char *name) {
+    return !strcmp(name, "ShowWindow") ? (void *)o_ShowWindow : NULL;
 }

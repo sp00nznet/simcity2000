@@ -29,6 +29,7 @@ add_executable(sc2k
   src/runtime/overrides.c
   src/runtime/capture.c
   src/runtime/palette.c
+  src/runtime/input.c
   src/recomp/gen/recomp_dispatch.c
   ${GEN_SOURCES}
 )
@@ -49,4 +50,4 @@ target_compile_options(sc2k PRIVATE /Z7)
 # 0x00400000 upward belongs to the game image; link the host well clear of it.
 # --nxcompat so DEP is on and a jump into guest .text traps (the callback path).
 target_link_options(sc2k PRIVATE /BASE:0x60000000 /DYNAMICBASE:NO /NXCOMPAT /DEBUG)
-target_link_libraries(sc2k PRIVATE user32 gdi32)
+target_link_libraries(sc2k PRIVATE user32 gdi32 comdlg32 advapi32)
