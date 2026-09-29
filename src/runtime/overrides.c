@@ -109,10 +109,6 @@ void registry_defaults(void) {
         { "Options", "AutoBudget", NULL, 0 },
         { "Options", "AutoSave",   NULL, 0 },
         { "Options", "Speed",      NULL, 1 },
-        /* The "not running in 256 colors" notice shows once, then records the
-         * depth it warned about here. Palette animation is the host's problem
-         * (ROADMAP), so answer it up front instead of stopping on a dialog. */
-        { "Windows", "Last Color Depth", NULL, 32 },
     };
     for (size_t i = 0; i < sizeof v / sizeof v[0]; i++) {
         char path[128], buf[MAX_PATH + 32];
@@ -145,8 +141,12 @@ static const struct { const char *name; void *fn; } table[] = {
     { "GetCommandLineA",    (void *)o_GetCommandLineA },
 };
 
+void *palette_override(const char *name);   /* palette.c */
+
 void *override_for(const char *dll, const char *name) {
     (void)dll;
+    void *p = palette_override(name);
+    if (p) return p;
     for (size_t i = 0; i < sizeof table / sizeof table[0]; i++)
         if (!strcmp(table[i].name, name)) return table[i].fn;
     return NULL;

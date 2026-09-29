@@ -19,7 +19,7 @@ All notable changes to this project are documented here. The format follows
 ### Fixed
 
 - The simulation no longer faults after the first newspaper: pcrecomp's
-  `lift32` lifted `div cl` as a 32-bit divide and overwrote EDX. Needs the
+  `lift32` lifted `div cl` as a 32-bit divide and overwrote EDX. Needs
   pcrecomp#6 (branch `fix/lift32-narrow-muldiv`).
 
 ## [0.1.0] - 2026-09-29
