@@ -2,12 +2,12 @@
 
 ## Next
 
-- **Play a city.** Close the newspaper, build with the toolbar, let the
-  simulation run for a few game years, and see what breaks.
+- **Build with the tools.** Zones, roads and power through `--input` (it needs
+  a drag verb), then let the city grow for a few game years.
 - **Palette animation.** The game animates water, lights and traffic by
   rewriting palette entries, which does nothing on a 32-bit desktop. Emulate an
   8-bit palette in the host (the blits already go through GDI calls we can see).
-- **Save and load** a city; load the bundled cities and scenarios.
+- **Saving**, and loading through the File dialog; the scenarios.
 - **Sound and music**: `sndPlaySound` and MIDI through MCI, both pass through
   today and have not been checked.
 - **`Setup.cmd` quick start** (REPO_RULES section 5): check prerequisites, find

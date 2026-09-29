@@ -14,29 +14,37 @@ the lifter runs on your machine and writes the C into a gitignored folder.
 
 ## Status
 
-**v0.1.0 — alpha. It boots, generates terrain, and starts a city.**
+**v0.2.0 — alpha. It plays: new cities and saved ones, with the simulation running.**
 
-The recompiled program runs the CRT and MFC startup, shows the title screen and
-main menu, generates a new map, and opens a city in January 1900 with its first
-newspaper. Everything on screen below is the game's own code, recompiled.
+The recompiled program runs the CRT and MFC startup, shows the title screen,
+generates new maps, loads saved cities, and runs the simulation: NYC, left
+running headless for 200 seconds, advanced a full game year with no fault and
+no unresolved call. Everything on screen below is the game's own code,
+recompiled.
 
 | | |
 |---|---|
 | ![Title screen](docs/screenshots/title.png) | ![New city terrain](docs/screenshots/new-city.png) |
-| Title screen and main menu | Start New City: a generated map and the difficulty dialog |
-| ![Newspaper](docs/screenshots/newspaper.png) | |
-| January 1900: the first *New City Courier* | |
+| Title screen and main menu | Start New City: a generated map |
+| ![A new city, running](docs/screenshots/in-game.png) | ![NYC](docs/screenshots/nyc.png) |
+| February 1900: toolbar up, "Power Plant Needed" | `CITIES\NYC.SC2`, loaded and simulating |
 
 | Area | State |
 |---|---|
-| Lift | 7,045 functions, 0 lift errors, ~523K lines of C |
-| Startup, MFC, dialogs, menus | Working |
-| Terrain generation and map rendering | Working |
-| Simulation, building tools | Not yet exercised |
+| Lift | 7,045 functions, 0 lift errors, ~522K lines of C |
+| Startup, MFC, dialogs, menus, toolbar | Working |
+| Terrain generation, map rendering | Working |
+| Loading a saved city (from the command line) | Working |
+| Simulation | Runs: a full year of NYC, no faults |
+| Building with the tools | Not yet exercised |
 | Palette animation (water, lights) | Not emulated: modern desktops are 32-bit colour |
 | Intro movie | Skipped — the game looks for the CD, and says so |
 | Sound and music | Not yet exercised |
-| Save / load | Not yet exercised |
+| Saving | Not yet exercised |
+
+Needs pcrecomp with the `lift32` narrow `mul`/`div` fix (branch
+`fix/lift32-narrow-muldiv`); without it the simulation faults as soon as the
+first newspaper closes.
 
 ## Getting Started
 
@@ -92,6 +100,8 @@ build\sc2k.exe [--headless] [--record out.mp4] [--fps N] [--seconds N]
   nothing appears on your screen. Works over RDP.
 - `--record out.mp4` films every window of the game through ffmpeg.
 - `--seconds N` exits after N seconds.
+- Anything after the game's path goes to the game; a city file opens that
+  city: `build\sc2k.exe game\SIMCITY.EXE CITIES\NYC.SC2`.
 - `--input "22:click 902,384; 34:click 901,519"` posts clicks (and `T:key VK`
   key presses) at the given times — how the screenshots above were taken:
 

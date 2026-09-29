@@ -40,8 +40,12 @@ target_compile_definitions(sc2k PRIVATE RECOMP_RETADDR=0u)
 # count is the signal. -O1 keeps a 500K-line build to a few minutes.
 target_compile_definitions(sc2k PRIVATE _WIN32_WINNT=0x0601 _CRT_SECURE_NO_WARNINGS)
 set_source_files_properties(${GEN_SOURCES} PROPERTIES COMPILE_OPTIONS "/w;/O1;-fno-strict-aliasing;-fwrapv")
+# Line info always: a crash address symbolizes to a generated line, and each
+# generated line carries the original instruction's address in a comment.
+#   llvm-symbolizer --obj=build/sc2k.exe 0x<address from the crash report>
+target_compile_options(sc2k PRIVATE /Z7)
 
 # 0x00400000 upward belongs to the game image; link the host well clear of it.
 # --nxcompat so DEP is on and a jump into guest .text traps (the callback path).
-target_link_options(sc2k PRIVATE /BASE:0x60000000 /DYNAMICBASE:NO /NXCOMPAT)
+target_link_options(sc2k PRIVATE /BASE:0x60000000 /DYNAMICBASE:NO /NXCOMPAT /DEBUG)
 target_link_libraries(sc2k PRIVATE user32 gdi32)

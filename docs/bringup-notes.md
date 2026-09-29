@@ -69,3 +69,25 @@ top-level `__asm__` as Intel syntax; the two trampolines start with
 `ProgramFiles(x86)` does not survive being passed through a POSIX shell (the
 name is not a valid shell variable), so `build.cmd` falls back to the literal
 path for `vswhere.exe`.
+
+## `div cl` is not a 32-bit divide
+
+Closing the first newspaper started the simulation, which faulted at once:
+
+```
+[host] exception 0xC0000005 at 6025AACC (read 0x00000001)
+  in lifted 0x0046A840  ...
+```
+
+`llvm-symbolizer --obj=build/sc2k.exe 0x6025AACC` named the generated line, and
+the line's comment named the instruction. The function loads a map-row pointer
+into EDX, then does `div cl` to scale a byte. `div cl` divides AX into AL and
+AH and leaves EDX alone; pcrecomp's `lift32` emitted the 32-bit form, dividing
+EDX:EAX and overwriting EDX with a small remainder, and the next load through
+"the row pointer" read address 1. The same was true of `mul`/`imul`/`idiv` with
+byte and word operands. Fixed in the toolkit (branch
+`fix/lift32-narrow-muldiv`) with difftest cases against Unicorn.
+
+That is the triage loop for any crash: the crash report names the lifted
+function; `llvm-symbolizer` names the generated line; the comment on the line
+is the original instruction.

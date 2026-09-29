@@ -6,6 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-29
+
+### Added
+
+- Saved cities open from the command line
+  (`sc2k.exe game\SIMCITY.EXE CITIES\NYC.SC2`); NYC simulates a full year
+  headless with no fault.
+- Line info in every build (`/Z7`), so a crash address symbolizes to a
+  generated line with `llvm-symbolizer`.
+
+### Fixed
+
+- The simulation no longer faults after the first newspaper: pcrecomp's
+  `lift32` lifted `div cl` as a 32-bit divide and overwrote EDX. Needs the
+  pcrecomp branch `fix/lift32-narrow-muldiv`.
+
 ## [0.1.0] - 2026-09-29
 
 ### Added
