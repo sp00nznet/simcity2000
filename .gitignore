@@ -1,0 +1,28 @@
+# --- Game files: never committed (REPO_RULES section 3) ---
+game/
+original/
+*.iso
+*.img
+*.EXE
+*.exe
+*.DLL
+*.dll
+
+# --- Derived from the game binary: never committed ---
+src/recomp/gen/
+analysis/*.json
+
+# --- Build output and scratch ---
+build/
+work/
+*.mp4
+*.obj
+*.pdb
+*.ilk
+
+# --- Editor / OS ---
+.vs/
+.vscode/
+Thumbs.db
+.DS_Store
+__pycache__/
