@@ -42,7 +42,7 @@ recompiled.
 | Sound and music | Not yet exercised |
 | Saving | Not yet exercised |
 
-Needs pcrecomp with the `lift32` narrow `mul`/`div` fix (branch
+Needs pcrecomp with the `lift32` narrow `mul`/`div` fix (pcrecomp#6, branch
 `fix/lift32-narrow-muldiv`); without it the simulation faults as soon as the
 first newspaper closes.
 
