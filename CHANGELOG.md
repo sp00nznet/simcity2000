@@ -6,7 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- The map's colours after loading a city: a deleted bitmap's handle came back
+  for the new map, which was then tinted from the old city's colours.
+- Fog and seasons no longer tint the empty space around the map.
+
 ### Added
+
+- Saves menu: five quick-save slots with city name and time, through the
+  game's own Save As / Load City, the dialog answered unseen.
 
 - Play menu: turbo up to 8x (the game's 200 ms timer, shortened; measured 4.0x
   at 4x), mouse-wheel zoom, autosave for named cities.

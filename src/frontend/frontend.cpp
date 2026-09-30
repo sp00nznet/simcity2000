@@ -59,6 +59,8 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM,
 #define GAME_WEATHER (*(volatile uint8_t *)0x004CB40C)
 #define GAME_START   (*(volatile int16_t *)0x004CA5F4)
 
+static const char *kMonth[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+
 /* ---------------------------------------------------------------- settings */
 
 struct Settings {
@@ -492,7 +494,6 @@ static void popup_menu() {
 
 static const char *kWeather[] = { "Cold", "Clear", "Hot", "Foggy", "Chilly", "Overcast", "Snow", "Rain",
                                   "Windy", "Blizzard", "Hurricane", "Tornado" };
-static const char *kMonth[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
 static void set_funds(int v) {
     guest_lock();
@@ -501,6 +502,101 @@ static void set_funds(int v) {
 }
 
 static void set_fullscreen(bool on);
+
+/* ---- save slots, through the game's own Save As / Load ---- */
+
+#define SLOTS 5
+
+/* A slot is a folder, CITIES\SLOTS\n, holding one <city>.SC2: the game names
+ * a city after the file it is saved as, so a file called SLOT1.SC2 renamed
+ * NYC to "SLOT1". */
+static std::string slot_dir(int n) {
+    char p[MAX_PATH];
+    GetModuleFileNameA((HMODULE)0x00400000, p, sizeof p);   /* the game's folder */
+    char *e = strrchr(p, '\\');
+    if (e) e[1] = 0;
+    return std::string(p) + "CITIES\\SLOTS\\" + std::to_string(n) + "\\";
+}
+
+static std::string slot_path(int n) {
+    WIN32_FIND_DATAA fd;
+    HANDLE h = FindFirstFileA((slot_dir(n) + "*.SC2").c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE) return "";
+    FindClose(h);
+    return slot_dir(n) + fd.cFileName;
+}
+
+/* The current city's name, from the game's title bar: "... <NYC> ...". */
+static std::string city_name() {
+    char t[256] = "";
+    HWND frame = game_frame_window();
+    if (frame) GetWindowTextA(frame, t, sizeof t);
+    const char *a = strchr(t, '<'), *b = a ? strchr(a, '>') : nullptr;
+    std::string n = (a && b) ? std::string(a + 1, b) : "City";
+    for (char &c : n) if (strchr("\\/:*?\"|", c)) c = '_';
+    return n.empty() ? "City" : n;
+}
+
+/* Empty the slot, then return where the city goes. */
+static std::string slot_save_path(int n) {
+    std::string d = slot_dir(n);
+    CreateDirectoryA(d.substr(0, d.size() - 1 - std::to_string(n).size()).c_str(), nullptr);   /* ...\SLOTS */
+    CreateDirectoryA(d.c_str(), nullptr);
+    for (std::string old; !(old = slot_path(n)).empty();) DeleteFileA(old.c_str());
+    return d + city_name() + ".SC2";
+}
+
+/* "NYC, 29 Sep 21:14", or empty if the slot has no city. The name is the
+ * file's CNAM chunk: a big-endian length, then a length-prefixed string. */
+static std::string slot_label(int n) {
+    std::string path = slot_path(n);
+    WIN32_FILE_ATTRIBUTE_DATA fa;
+    if (path.empty() || !GetFileAttributesExA(path.c_str(), GetFileExInfoStandard, &fa)) return "";
+    char name[40] = "?";
+    FILE *f = fopen(path.c_str(), "rb");
+    if (f) {
+        unsigned char buf[4096];
+        size_t got = fread(buf, 1, sizeof buf, f);
+        fclose(f);
+        for (size_t i = 0; i + 9 < got; i++)
+            if (!memcmp(buf + i, "CNAM", 4)) {
+                int len = buf[i + 8];
+                if (len > 0 && len < 32 && i + 9 + len <= got) { memcpy(name, buf + i + 9, len); name[len] = 0; }
+                break;
+            }
+    }
+    SYSTEMTIME st;
+    FILETIME lt;
+    FileTimeToLocalFileTime(&fa.ftLastWriteTime, &lt);
+    FileTimeToSystemTime(&lt, &st);
+    char out[96];
+    snprintf(out, sizeof out, "%s, %d %s %02d:%02d", name, st.wDay, kMonth[st.wMonth - 1], st.wHour, st.wMinute);
+    return out;
+}
+
+extern "C" void file_dialog_answer(int kind, const char *path);
+
+static void saves_menu() {
+    if (!ImGui::BeginMenu("Saves")) return;
+    ImGui::TextDisabled("Save to");
+    for (int n = 1; n <= SLOTS; n++) {
+        std::string l = slot_label(n), item = "Slot " + std::to_string(n) + (l.empty() ? "" : "  (" + l + ")") + "##s" + std::to_string(n);
+        if (ImGui::MenuItem(item.c_str())) {
+            file_dialog_answer(1, slot_save_path(n).c_str());
+            input_live_command(0x8026);                         /* File > Save City As */
+        }
+    }
+    ImGui::Separator();
+    ImGui::TextDisabled("Load (the game asks about unsaved changes first)");
+    for (int n = 1; n <= SLOTS; n++) {
+        std::string l = slot_label(n), item = "Slot " + std::to_string(n) + (l.empty() ? "  (empty)" : "  (" + l + ")") + "##l" + std::to_string(n);
+        if (ImGui::MenuItem(item.c_str(), nullptr, false, !l.empty())) {
+            file_dialog_answer(2, slot_path(n).c_str());
+            input_live_command(0x8021);                         /* File > Load City */
+        }
+    }
+    ImGui::EndMenu();
+}
 
 /* File > Save City, every so often, for a city that has a file already. An
  * unsaved "New City" would open the Save As dialog instead, so it is skipped. */
@@ -547,6 +643,7 @@ static void host_menus() {
         changed |= ImGui::SliderFloat("Night depth", &g_fx.night_depth, 0.0f, 0.95f);
         ImGui::EndMenu();
     }
+    saves_menu();
     if (ImGui::BeginMenu("Play")) {
         ImGui::TextDisabled("Turbo (on top of the game's speed)");
         const int speeds[] = { 1, 2, 4, 8 };

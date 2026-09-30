@@ -185,6 +185,19 @@ static BOOL WINAPI o_AnimatePalette(HPALETTE pal, UINT start, UINT n, const PALE
     return r;
 }
 
+/* A deleted bitmap's handle can come straight back for the next one the game
+ * creates -- after loading a city it did, and the new map was tinted from the
+ * old city's colours. Forget a world bitmap when the game deletes it. */
+static BOOL WINAPI o_DeleteObject(HGDIOBJ h) {
+    if (emulating()) {
+        EnterCriticalSection(&g_lock);
+        for (int i = 0; i < g_nworld; i++)
+            if (g_world[i].bmp == (HBITMAP)h) { g_world[i] = g_world[--g_nworld]; break; }
+        LeaveCriticalSection(&g_lock);
+    }
+    return DeleteObject(h);
+}
+
 /* The game re-sends its whole palette to the map DIBs on every redraw. Keep
  * what it sent as the base, and hand the DIB the tinted version. */
 static UINT WINAPI o_SetDIBColorTable(HDC dc, UINT start, UINT n, const RGBQUAD *q) {
@@ -226,6 +239,7 @@ static int WINAPI o_GetDeviceCaps(HDC dc, int what) {
 
 void *palette_override(const char *name) {
     if (!lstrcmpA(name, "GetDeviceCaps")) return (void *)o_GetDeviceCaps;
+    if (!lstrcmpA(name, "DeleteObject")) return (void *)o_DeleteObject;
     if (!lstrcmpA(name, "SetDIBColorTable")) return (void *)o_SetDIBColorTable;
     if (!lstrcmpA(name, "AnimatePalette")) return (void *)o_AnimatePalette;
     if (!lstrcmpA(name, "BitBlt")) return (void *)o_BitBlt;

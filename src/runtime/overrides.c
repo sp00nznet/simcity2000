@@ -185,8 +185,35 @@ static BOOL file_dialog(BOOL (WINAPI *fn)(LPOPENFILENAMEA), LPOPENFILENAMEA o) {
     return r;
 }
 
-static BOOL WINAPI o_GetSaveFileNameA(LPOPENFILENAMEA o) { return file_dialog(GetSaveFileNameA, o); }
-static BOOL WINAPI o_GetOpenFileNameA(LPOPENFILENAMEA o) { return file_dialog(GetOpenFileNameA, o); }
+/* The frontend's save slots: it names the file, then sends the game its own
+ * Save As or Load City command, and the dialog that command opens is answered
+ * here without being shown. The answer is one-shot and expires after a
+ * minute, so a load the player cancels at "save your city?" cannot capture
+ * some later, real dialog. */
+static char  g_answer[MAX_PATH];
+static int   g_answer_kind;           /* 1 save, 2 open */
+static DWORD g_answer_at;
+
+void file_dialog_answer(int kind, const char *path) {
+    lstrcpynA(g_answer, path, sizeof g_answer);
+    g_answer_kind = kind;
+    g_answer_at = GetTickCount();
+}
+
+static BOOL answered(int kind, LPOPENFILENAMEA o) {
+    if (!g_answer[0] || g_answer_kind != kind || GetTickCount() - g_answer_at > 60000) return FALSE;
+    lstrcpynA(o->lpstrFile, g_answer, o->nMaxFile);
+    const char *name = strrchr(g_answer, '\\');
+    const char *dot = strrchr(g_answer, '.');
+    o->nFileOffset = (WORD)(name ? name - g_answer + 1 : 0);
+    o->nFileExtension = (WORD)(dot && dot > name ? dot - g_answer + 1 : 0);
+    if (o->lpstrFileTitle) lstrcpynA(o->lpstrFileTitle, g_answer + o->nFileOffset, o->nMaxFileTitle);
+    g_answer[0] = 0;
+    return TRUE;
+}
+
+static BOOL WINAPI o_GetSaveFileNameA(LPOPENFILENAMEA o) { return answered(1, o) || file_dialog(GetSaveFileNameA, o); }
+static BOOL WINAPI o_GetOpenFileNameA(LPOPENFILENAMEA o) { return answered(2, o) || file_dialog(GetOpenFileNameA, o); }
 
 static const struct { const char *name; void *fn; } table[] = {
     { "GetSaveFileNameA",   (void *)o_GetSaveFileNameA },

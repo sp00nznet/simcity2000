@@ -1,6 +1,7 @@
 # The frontend
 
-`sc2k --frontend` plays the game in the host's own window instead of the game's:
+`sc2k` plays the game in the host's own window instead of the game's (`--classic`
+for the game's own windows):
 the picture goes through a shader chain, and a menu bar sits above it that never
 covers the game (after Tachyon's developer bar).
 
@@ -11,6 +12,13 @@ covers the game (after Tachyon's developer bar).
 at normal speed, 161 at 4x. The mouse wheel sends the toolbar's own zoom
 commands (`0x20` in, `0x21` out). Autosave sends File > Save City (`0x8025`)
 only for a city that already has a file, so it never opens a dialog.
+
+**Save slots**: each slot is a folder, `CITIES\SLOTS\n\<city>.SC2` (the game names a
+city after its file, so a file called `SLOT1.SC2` renamed NYC to "SLOT1"). The
+frontend names the file and sends the game its own Save City As (`0x8026`) or
+Load City (`0x8021`); the File dialog that opens is answered without being
+shown. The answer is one-shot and expires after a minute, so a load cancelled
+at the game's "save your city?" question cannot capture a later dialog.
 
 ## How it fits together
 
@@ -53,6 +61,7 @@ only for a city that already has a file, so it never opens a dialog.
 | File ... Help | The game's own, mirrored |
 | Graphics | Filter: nearest, smooth, sharp bilinear, Scale2x; integer scaling; glow; CRT (curvature, scanlines, shadow mask, vignette) |
 | Effects | Day and night, seasons, weather (docs/effects.md); days per cycle; night depth |
+| Saves | Five quick-save slots, each showing its city and time; save and load in one click |
 | Play | Turbo on top of the game's speed (2x, 4x, 8x); mouse wheel zoom; autosave every 5, 10 or 30 minutes |
 | Display | Fullscreen (F11), vsync |
 | Debug | City stats window; capture time and frame rate |

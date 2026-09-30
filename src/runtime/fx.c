@@ -24,6 +24,7 @@
 
 #define GAME_DAYS    (*(volatile int32_t *)0x004CAE04)
 #define GAME_WEATHER (*(volatile uint8_t *)0x004CB40C)
+#define FX_VOID_INDEX 130            /* the brown around the map */
 
 fx_settings_t g_fx = {
     .daynight = 1, .seasons = 1, .weather = 1,
@@ -80,7 +81,11 @@ RGBQUAD fx_apply(int index, RGBQUAD in, const fx_state_t *s) {
     int light = fx_is_light(index, in);
     float grey = 0.30f * r + 0.59f * g + 0.11f * b;
 
-    if (g_fx.seasons) {
+    /* Entry 130 is the empty space around the map: not land, so no season or
+     * weather -- fog turned it mauve. Night still darkens it. */
+    int land = index != FX_VOID_INDEX;
+
+    if (g_fx.seasons && land) {
         int m = s->month;
         if (m == 11 || m <= 1) {                    /* winter: paler, cooler */
             r += (grey - r) * 0.25f; g += (grey - g) * 0.25f; b += (grey - b) * 0.25f + 6;
@@ -92,11 +97,11 @@ RGBQUAD fx_apply(int index, RGBQUAD in, const fx_state_t *s) {
         }
     }
 
-    if (g_fx.weather && !light) {
+    if (g_fx.weather && !light && land) {
         switch (s->weather) {
         case W_COLD: case W_CHILLY: b += 8; r *= 0.97f; break;
         case W_HOT:       r *= 1.05f; g *= 1.02f; b *= 0.94f; break;
-        case W_FOGGY:     r += (205 - r) * 0.35f; g += (205 - g) * 0.35f; b += (210 - b) * 0.35f; break;
+        case W_FOGGY:     r += (205 - r) * 0.25f; g += (205 - g) * 0.25f; b += (210 - b) * 0.25f; break;
         case W_OVERCAST:  r = (r + (grey - r) * 0.25f) * 0.9f; g = (g + (grey - g) * 0.25f) * 0.9f;
                           b = (b + (grey - b) * 0.25f) * 0.92f; break;
         case W_RAIN:      r *= 0.8f; g *= 0.83f; b *= 0.9f; break;
