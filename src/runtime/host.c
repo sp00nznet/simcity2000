@@ -347,9 +347,11 @@ static DWORD WINAPI watch_thread(LPVOID unused) {
     (void)unused;
     for (unsigned s = 1;; s++) {
         Sleep(1000);
-        fprintf(stderr, "[watch] %us  in 0x%08X  icalls %u  last %08X <- %08X\n", s, g_cur_func,
-                g_icall_count, g_icall_trace[(g_icall_trace_idx - 1) & (ICALL_TRACE_SIZE - 1)],
-                g_icall_from[(g_icall_trace_idx - 1) & (ICALL_TRACE_SIZE - 1)]);
+        int32_t days = *(volatile int32_t *)0x004CAE04;          /* see fx.c */
+        fprintf(stderr, "[watch] %us  in 0x%08X  icalls %u  last %08X <- %08X  day %d month %d weather %u funds %d\n",
+                s, g_cur_func, g_icall_count, g_icall_trace[(g_icall_trace_idx - 1) & (ICALL_TRACE_SIZE - 1)],
+                g_icall_from[(g_icall_trace_idx - 1) & (ICALL_TRACE_SIZE - 1)], days, (days / 25) % 12,
+                *(volatile uint8_t *)0x004CB40C, *(volatile int32_t *)0x004CA444);
     }
     return 0;
 }
@@ -455,7 +457,11 @@ static void usage(void) {
                     "            [path/to/SIMCITY.EXE] [game arguments...]\n");
 }
 
+int fx_selftest(void);                                     /* fx.c */
+void fx_init(void);
+
 int main(int argc, char **argv) {
+    if (argc > 1 && !strcmp(argv[1], "--selftest")) return fx_selftest();
     if (!GetEnvironmentVariableA("SC2K_CHILD", NULL, 0)) return relaunch_reserved();
     const char *exe = "game/SIMCITY.EXE", *record = NULL, *input = NULL;
     int headless = 0, native = 0, fps = 10, i = 1;
@@ -530,6 +536,7 @@ int main(int argc, char **argv) {
 
     /* Only now: anything that allocates must wait until the image owns its range. */
     registry_defaults();
+    fx_init();
     if (headless && !headless_init()) return 2;
     if (record && !record_start(record, fps, seconds)) return 2;
     exit_after(seconds);

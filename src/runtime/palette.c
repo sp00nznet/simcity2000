@@ -16,10 +16,18 @@
  *
  * Only on a desktop without a palette; on a real 8-bit display the hardware
  * does it and this stays out of the way.
+ *
+ * The same position makes the effects possible (fx.c): the map view's colour
+ * tables pass through here, so each entry can be recoloured for the time of
+ * day, the season and the weather. The game's own colours are kept per map DC
+ * ("world" DCs: the sources of blits big enough to be the city view) and the
+ * DIB gets the tinted copy; toolbars and dialogs are left alone.
  */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <math.h>
 #include <string.h>
+#include "fx.h"
 
 #define MAX_BLITS 256
 
@@ -46,6 +54,36 @@ static int emulating(void) {
     return g_mode;
 }
 
+/* The city view's DCs, and the game's untinted colours for each. */
+#define MAX_WORLD 8
+static struct { HDC dc; RGBQUAD base[256]; } g_world[MAX_WORLD];
+static int g_nworld;
+static fx_state_t g_applied;         /* the state the world tables were last tinted for */
+
+static int world_index(HDC dc) {
+    for (int i = 0; i < g_nworld; i++) if (g_world[i].dc == dc) return i;
+    return -1;
+}
+
+static void tint_into(HDC dc, const RGBQUAD *base, UINT start, UINT n, const fx_state_t *st) {
+    RGBQUAD q[256];
+    for (UINT i = 0; i < n; i++) q[i] = fx_apply((int)(start + i), base[start + i], st);
+    SetDIBColorTable(dc, start, n, q);
+}
+
+static int state_changed(const fx_state_t *a, const fx_state_t *b) {
+    return a->month != b->month || a->weather != b->weather || fabsf(a->night - b->night) > 0.004f;
+}
+
+/* Re-tint every world table if the sky moved since they were last written. */
+static void retint_if_needed(void) {
+    fx_state_t st;
+    fx_state(&st);
+    if (!state_changed(&st, &g_applied)) return;
+    g_applied = st;
+    for (int i = 0; i < g_nworld; i++) tint_into(g_world[i].dc, g_world[i].base, 0, 256, &st);
+}
+
 static int is_8bit_dib(HDC dc) {
     DIBSECTION ds;
     HGDIOBJ b = GetCurrentObject(dc, OBJ_BITMAP);
@@ -56,6 +94,12 @@ static void remember(HDC dst, int x, int y, int w, int h, HDC src, int sx, int s
     if (!emulating()) return;
     HWND hwnd = WindowFromDC(dst);
     if (rop != SRCCOPY || !src || !hwnd || !is_8bit_dib(src)) return;
+    if (w * h >= 300000 && world_index(src) < 0 && g_nworld < MAX_WORLD) {
+        g_world[g_nworld].dc = src;
+        GetDIBColorTable(src, 0, 256, g_world[g_nworld].base);   /* first sight: take it as the game's */
+        g_nworld++;
+        g_applied.month = -1;                                      /* force a tint */
+    }
     POINT p[2] = { { x, y }, { x + w, y + h } };
     LPtoDP(dst, p, 2);
     blit_t b = { hwnd, src, { p[0].x, p[0].y, p[1].x, p[1].y }, sx, sy, sw, sh, rop };
@@ -107,8 +151,17 @@ static BOOL WINAPI o_AnimatePalette(HPALETTE pal, UINT start, UINT n, const PALE
         g_blits[live++] = *b;
         int seen = 0;
         for (int k = 0; k < live - 1; k++) seen |= g_blits[k].src == b->src;
-        if (!seen) SetDIBColorTable(b->src, start, n, q);
+        if (seen) continue;
+        int w = world_index(b->src);
+        if (w >= 0) {
+            memcpy(&g_world[w].base[start], q, n * sizeof q[0]);
+            fx_state(&g_applied);
+            tint_into(b->src, g_world[w].base, start, n, &g_applied);
+        } else {
+            SetDIBColorTable(b->src, start, n, q);
+        }
     }
+    retint_if_needed();
     g_nblits = live;
     for (int i = 0; i < g_nblits; i++) {
         blit_t *b = &g_blits[i];
@@ -119,6 +172,26 @@ static BOOL WINAPI o_AnimatePalette(HPALETTE pal, UINT start, UINT n, const PALE
         else
             StretchBlt(dc, b->dst.left, b->dst.top, w, h, b->src, b->sx, b->sy, b->sw, b->sh, b->rop);
         ReleaseDC(b->hwnd, dc);
+    }
+    LeaveCriticalSection(&g_lock);
+    return r;
+}
+
+/* The game re-sends its whole palette to the map DIBs on every redraw. Keep
+ * what it sent as the base, and hand the DIB the tinted version. */
+static UINT WINAPI o_SetDIBColorTable(HDC dc, UINT start, UINT n, const RGBQUAD *q) {
+    if (!emulating() || start >= 256) return SetDIBColorTable(dc, start, n, q);
+    if (n > 256 - start) n = 256 - start;
+    EnterCriticalSection(&g_lock);
+    int w = world_index(dc);
+    UINT r;
+    if (w < 0) {
+        r = SetDIBColorTable(dc, start, n, q);
+    } else {
+        memcpy(&g_world[w].base[start], q, n * sizeof q[0]);
+        fx_state(&g_applied);
+        tint_into(dc, g_world[w].base, start, n, &g_applied);
+        r = n;
     }
     LeaveCriticalSection(&g_lock);
     return r;
@@ -145,6 +218,7 @@ static int WINAPI o_GetDeviceCaps(HDC dc, int what) {
 
 void *palette_override(const char *name) {
     if (!lstrcmpA(name, "GetDeviceCaps")) return (void *)o_GetDeviceCaps;
+    if (!lstrcmpA(name, "SetDIBColorTable")) return (void *)o_SetDIBColorTable;
     if (!lstrcmpA(name, "AnimatePalette")) return (void *)o_AnimatePalette;
     if (!lstrcmpA(name, "BitBlt")) return (void *)o_BitBlt;
     if (!lstrcmpA(name, "StretchBlt")) return (void *)o_StretchBlt;

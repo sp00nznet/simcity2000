@@ -29,6 +29,7 @@ add_executable(sc2k
   src/runtime/overrides.c
   src/runtime/capture.c
   src/runtime/palette.c
+  src/runtime/fx.c
   src/runtime/input.c
   src/recomp/gen/recomp_dispatch.c
   ${GEN_SOURCES}

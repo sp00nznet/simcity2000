@@ -155,7 +155,7 @@ what the installer would have written, without overwriting anything present.
 mapped at its original address, its imports are bound to the real Win32 API,
 and callbacks from Windows into the game are caught with a DEP trap.
 [docs/bringup-notes.md](docs/bringup-notes.md) has the problems that took the
-longest to find.
+longest to find, and [docs/effects.md](docs/effects.md) the optional effects.
 
 ## Building from source
 

@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Day and night, seasons and weather, recoloured per palette entry from the game's
+  own clock and weather, so lights stay lit at night (`fx.c`, docs/effects.md).
+- `sc2k --selftest` for the effect math; `SC2K_WATCH` also shows day, month,
+  weather and funds.
+
 - A hero GIF for the README: NYC, recompiled, with a plane over the harbour.
 
 ## [0.3.0] - 2026-09-29
