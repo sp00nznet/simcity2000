@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The build needs no commercial tools: `run_lift.py` takes its function
+  catalog from pcrecomp's `disasm32` (pcrecomp#23), and writes it on the first
+  run. IDA stays available with `--catalog analysis/ida_funcs.json`.
+  Against IDA: precision 87.4%, recall 88.2%; the lift is 9,870 functions.
+- `run_lift.py` drops recovered entries inside a known instruction, and clears
+  stale chunk files before writing.
+
 ### Fixed
 
 - African Swallow ran the simulation flat out, a day per idle pass, so on a

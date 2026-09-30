@@ -5,7 +5,7 @@ and the host runtime, which loads the original image and connects the
 generated code to Windows.
 
 ```
-SIMCITY.EXE ──IDA──> analysis/ida_funcs.json, ida_codemap.json
+SIMCITY.EXE ──disasm32──> analysis/d32_funcs.json  (or IDA: ida_funcs.json + ida_codemap.json)
      │                          │
      └──────── run_lift.py <────┘   (pcrecomp lift32 + generate.py)
                     │
@@ -17,18 +17,25 @@ SIMCITY.EXE ──IDA──> analysis/ida_funcs.json, ida_codemap.json
 
 ## The lifter (`run_lift.py`)
 
-Function entries come from IDA's catalog, from pcrecomp's `recover_functions`
-(tail-call targets and stored function pointers IDA missed), and from the
+Function entries come from the catalog -- pcrecomp's `disasm32` by default,
+IDA's if you have it -- from pcrecomp's `recover_functions` (tail-call targets
+and stored function pointers the catalog missed), and from the
 `.reloc` table: every absolute pointer from a data section into `.text` is a
 code address somebody can reach indirectly. That last source finds MFC
 message-map handlers and the C++ exception-unwind funclets that live inside
 other functions.
 
-Inside IDA's functions, instructions are decoded only at IDA's instruction
-heads. MSVC keeps jump tables inside `.text` (`_memcpy` does
+Inside the catalog's functions, instructions are decoded only at its
+instruction heads (disasm32's recursive descent, or IDA's code map). MSVC keeps jump tables inside `.text` (`_memcpy` does
 `jmp [edx*4 + table]` and the table follows the jump); a linear sweep decodes
 the table as instructions, runs over the real targets, and the switch never
-lands. The shared linear sweep is kept for entries IDA does not know.
+lands. The shared linear sweep is kept for entries the catalog does not know.
+
+disasm32 against IDA on this binary: precision 87.4%, recall 88.2%. Every
+function it misses is one IDA lists only because it sweeps linearly -- nothing
+calls it or points at it. The rest of the difference is entries disasm32 keeps
+separate that IDA folds in (jump thunks, and EH funclets, which disasm32 marks
+as aliases of the function that installs them).
 
 ## The host (`src/runtime/`)
 

@@ -24,8 +24,9 @@
   routine).
 - **The built-in cheat codes** (`0x0040CA30`): find what context they are typed in.
 
-- An IDA-free function catalog (pcrecomp `disasm32.py`), so building does not
-  need a commercial disassembler. Score it against the IDA catalog first.
+- A smaller IDA-free lift. disasm32's alias entries (labels, EH funclets)
+  get whole bodies of their own, so the lift is 1.1M lines against IDA's 0.5M.
+  Lifting an alias as a label of its host function would close most of that.
 - The intro movie: point the CD check at a folder instead of a drive.
 - C++ exception dispatch through the guest's own SEH chain. MFC throws on
   errors such as a bad file; today such a throw reaches the host unhandled.

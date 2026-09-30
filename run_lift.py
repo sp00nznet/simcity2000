@@ -9,9 +9,15 @@ Inside IDA's functions, instructions are decoded only at IDA's verified heads
 tables kept in .text are never decoded as code. Other entries use the shared
 linear sweep.
 
+The catalog and code map come from one of two places:
+  - pcrecomp's disasm32 (the default, no commercial tools): analysis/d32_funcs.json,
+    written with --full, and made here if it is missing. Recursive descent only
+    decodes what control flow reaches, so its instructions are the code map too.
+  - IDA, if you have it: `--catalog analysis/ida_funcs.json` (tools/ida/ida_funcs.py)
+    with analysis/ida_codemap.json (tools/ida/ida_export.py --key va).
+
 Function entries come from three sources, unioned:
-  1. IDA's catalog (analysis/ida_funcs.json, from tools/ida/ida_funcs.py), which
-     carries exact [start, end) bounds.
+  1. The catalog, which carries [start, end) bounds.
   2. `recover.recover_functions`: jmp-thunk / tail-call targets and stored
      function pointers IDA never listed.
   3. The .reloc table. Every absolute pointer from a data section into .text is
@@ -22,12 +28,13 @@ Function entries come from three sources, unioned:
 Output goes to src/recomp/gen/, which is gitignored: it is derived from the
 game binary and never distributed (see README).
 
-    py -3 run_lift.py [--exe original/SIMCITY.EXE] [--out src/recomp/gen]
+    py -3 run_lift.py [--exe original/SIMCITY.EXE] [--catalog FILE] [--out src/recomp/gen]
 """
 import argparse
 import bisect
 import json
 import os
+import subprocess
 import sys
 import time
 
@@ -94,7 +101,7 @@ def head_disassemble_function(md, code, cs, start, end, heads):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--exe', default=os.path.join(_HERE, 'original', 'SIMCITY.EXE'))
-    ap.add_argument('--catalog', default=os.path.join(_HERE, 'analysis', 'ida_funcs.json'))
+    ap.add_argument('--catalog', default=os.path.join(_HERE, 'analysis', 'd32_funcs.json'))
     ap.add_argument('--codemap', default=os.path.join(_HERE, 'analysis', 'ida_codemap.json'))
     ap.add_argument('--out', default=os.path.join(_HERE, 'src', 'recomp', 'gen'))
     ap.add_argument('--split', type=int, default=400)
@@ -109,19 +116,46 @@ def main():
     text = [s for s in info.sections if s.name == '.text'][0]
     code = pe_data[text.raw_offset:text.raw_offset + min(text.virtual_size, text.raw_size)]
 
+    if not os.path.exists(args.catalog) and os.path.basename(args.catalog) == 'd32_funcs.json':
+        print('[*] no catalog yet: running disasm32 (a few minutes)')
+        os.makedirs(os.path.dirname(args.catalog), exist_ok=True)
+        subprocess.run([sys.executable, os.path.join(_PC, 'disasm', 'disasm32.py'), args.exe,
+                        '--full', '--output', args.catalog], check=True)
     cat = json.load(open(args.catalog, encoding='utf-8'))
-    fns = sorted((f['ea'], min(f['end'], ce)) for f in cat['functions'] if cs <= f['ea'] < ce)
+    if cat['functions'] and 'address' in cat['functions'][0]:
+        # disasm32 --full: every entry (starts, aliases, thunks), and its heads
+        if 'blocks' not in cat['functions'][0]:
+            sys.exit('%s: write it with disasm32 --full (the lift needs its instructions)' % args.catalog)
+        fns = sorted((f['address'], min(f['end'], ce)) for f in cat['functions'] if cs <= f['address'] < ce)
+        heads = sorted({i['address'] for f in cat['functions'] for b in f['blocks'] for i in b['instructions']})
+        source = 'disasm32'
+    else:
+        fns = sorted((f['ea'], min(f['end'], ce)) for f in cat['functions'] if cs <= f['ea'] < ce)
+        cmap = json.load(open(args.codemap))
+        heads = sorted(h for seg in cmap.values() for h in seg['heads'])
+        source = 'IDA'
     starts = [a for a, _ in fns]
     ida_entries = set(starts)
-    cmap = json.load(open(args.codemap))
-    heads = sorted(h for seg in cmap.values() for h in seg['heads'])
-    print('[*] IDA code map: %d instruction heads' % len(heads))
-    print('[*] IDA catalog: %d functions' % len(fns))
+    print('[*] %s code map: %d instruction heads' % (source, len(heads)))
+    print('[*] %s catalog: %d functions' % (source, len(fns)))
 
     targets = reloc_code_targets(pefile.PE(args.exe, fast_load=False), cs, ce)
     starts_set = set(starts)
     forced = sorted(t for t in targets if t not in starts_set)
     extra = recover_functions(code, cs, ce, fns, forced=forced)
+    # A recovered entry inside a known instruction decodes garbage, and its
+    # instructions would sit over the real ones (0x0041E956: the third byte of
+    # `mov eax, 0x4D75A8`, decoding to `push es`).
+    md1 = Cs(CS_ARCH_X86, CS_MODE_32)
+    interior = set()
+    for h in heads:
+        i = next(md1.disasm(code[h - cs:h - cs + 16], h, count=1), None)
+        if i is not None:
+            interior.update(range(h + 1, h + i.size))
+    bad = [e for e in extra if e[0] in interior]
+    extra = [e for e in extra if e[0] not in interior]
+    if bad:
+        print('[*] dropped %d recovered entries inside a known instruction' % len(bad))
     print('[*] recovered %d more (%d forced from .reloc, e.g. EH funclets)'
           % (len(extra), len(forced)))
     fns = sorted(set(fns) | set(extra))
@@ -137,6 +171,9 @@ def main():
     # runtime) instead of a call to an undeclared function (a link error).
     lifter = Lifter(iat_map=iat, lifted=known)
     os.makedirs(args.out, exist_ok=True)
+    for fn in os.listdir(args.out):               # a smaller lift leaves stale chunks behind
+        if fn.startswith('recomp_') and fn.endswith('.c'):
+            os.remove(os.path.join(args.out, fn))
     entries, chunk, idx, errors, t0 = [], [], 0, 0, time.time()
     seen = set()
     for addr, end in fns:

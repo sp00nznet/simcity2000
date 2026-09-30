@@ -72,39 +72,37 @@ Prerequisites, all on Windows 10 or 11:
 - Visual Studio 2022 or Build Tools 2022, with the **x86** C++ libraries
 - LLVM 17 or newer (for `clang-cl`), CMake 3.20+, Ninja
 - Python 3.11+ with `capstone` and `pefile` (`py -3 -m pip install capstone pefile`)
-- IDA Pro 9.x with idalib, for the function catalog (see [ROADMAP](ROADMAP.md))
 - ffmpeg on `PATH`, only for `--record`
-- A checkout of [pcrecomp](https://github.com/sp00nznet/pcrecomp) with #6 and
-  #8, either next to this one (`..\tools`) or anywhere, named by the
-  `PCRECOMP` environment variable (both `run_lift.py` and `tools\build.cmd`
-  read it). Until they merge, make one from the two PR branches:
-  ```
-  git -C ..\tools fetch origin
-  git -C ..\tools worktree add ..\simcity2000\work\pcrecomp origin/fix/lift32-narrow-muldiv
-  git -C work\pcrecomp merge origin/fix/lift32-rep-ecx0-flags
-  set PCRECOMP=%CD%\work\pcrecomp
-  ```
-  The merge stops on `CHANGELOG.md` and `tools/lift/difftest.py`; both sides
-  are additions, so keep both and `git commit`.
+- A checkout of [pcrecomp](https://github.com/sp00nznet/pcrecomp), either next
+  to this one (`..\tools`) or anywhere, named by the `PCRECOMP` environment
+  variable (both `run_lift.py` and `tools\build.cmd` read it)
+
+No commercial tools: the function catalog comes from pcrecomp's `disasm32`.
+IDA Pro is optional (see below). Until pcrecomp#23 merges, check out its
+branch (`feat/disasm32-lift-without-ida`); main's disasm32 makes a catalog
+the game stalls on.
 
 1. Copy the disc's `WIN95\SC2K` folder into `game\`, so that
    `game\SIMCITY.EXE` exists.
-2. Build the function catalog and code map with IDA (about a minute):
-   ```
-   copy game\SIMCITY.EXE work\ida_SIMCITY.EXE
-   py -3.11 ..\tools\tools\ida\ida_funcs.py  work\ida_SIMCITY.EXE analysis\ida_funcs.json
-   py -3.11 ..\tools\tools\ida\ida_export.py work\ida_SIMCITY.EXE analysis\ida_codemap.json --key va
-   ```
-   Expected: `5205 functions (library=1422, thunks=1893, ...)` and
-   `191512 code heads`.
-3. Lift:
+2. Lift:
    ```
    py -3 run_lift.py
    ```
-   Expected: `functions 7045   errors 0   files 18   lines 522,xxx`.
-4. Build: `tools\build.cmd`. Expected: `build\sc2k.exe`, about 7 MB.
-5. Run: `build\sc2k.exe game\SIMCITY.EXE`. The first line is
-   `[host] ...\SIMCITY.EXE mapped at 0x00400000, 7045 lifted functions, 0 unresolved imports`.
+   The first run writes the function catalog, `analysis\d32_funcs.json`, with
+   `disasm32` (a few minutes; delete the file to make it again). Expected:
+   `functions 9870   errors 0   files 25`.
+3. Build: `tools\build.cmd`. Expected: `build\sc2k.exe`, about 15 MB.
+4. Run: `build\sc2k.exe game\SIMCITY.EXE`. The first line is
+   `[host] ...\SIMCITY.EXE mapped at 0x00400000, 9870 lifted functions, 0 unresolved imports`.
+
+With IDA Pro 9.x (idalib) the catalog can come from IDA instead, and the lift
+is about half the size (7,045 functions, a 7 MB exe):
+```
+copy game\SIMCITY.EXE work\ida_SIMCITY.EXE
+py -3.11 ..\tools\tools\ida\ida_funcs.py  work\ida_SIMCITY.EXE analysis\ida_funcs.json
+py -3.11 ..\tools\tools\ida\ida_export.py work\ida_SIMCITY.EXE analysis\ida_codemap.json --key va
+py -3 run_lift.py --catalog analysis\ida_funcs.json
+```
 
 Usual trip-ups: `py` vs `python` (use the `py` launcher; the Microsoft Store
 `python` alias is not a real interpreter), and a `PATH` change that needs a new
