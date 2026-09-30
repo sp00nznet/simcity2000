@@ -8,6 +8,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `--frontend`: the game in the host's own Direct3D 11 window, with upscaling
+  filters (nearest, smooth, sharp bilinear, Scale2x), glow, CRT, fullscreen,
+  and a Dear ImGui menu bar: the game's menus mirrored with live check marks,
+  plus Graphics, Effects, Display, Debug (city stats) and Cheats (funds).
+  Toolbar pop-ups appear as ImGui pop-ups. Settings persist in `sc2k.ini`.
+- `NOTICE` and `LICENSES/imgui.txt` for the vendored Dear ImGui (MIT).
+
 - Day and night, seasons and weather, recoloured per palette entry from the game's
   own clock and weather, so lights stay lit at night (`fx.c`, docs/effects.md).
 - `sc2k --selftest` for the effect math; `SC2K_WATCH` also shows day, month,

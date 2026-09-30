@@ -296,6 +296,10 @@ static LONG WINAPI veh(EXCEPTION_POINTERS *ep) {
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
+/* The frontend writes game memory (cheats) between guest steps. */
+void guest_lock(void)   { EnterCriticalSection(&g_gil); }
+void guest_unlock(void) { LeaveCriticalSection(&g_gil); }
+
 /* ---- loading ---- */
 
 void *override_for(const char *dll, const char *name);   /* overrides.c */
@@ -453,22 +457,25 @@ static int run_native(int headless, const char *input) {
 }
 
 static void usage(void) {
-    fprintf(stderr, "usage: sc2k [--headless] [--record out.mp4] [--fps N] [--seconds N] [--input SCRIPT] [--native]\n"
+    fprintf(stderr, "usage: sc2k [--headless] [--record out.mp4] [--fps N] [--seconds N] [--input SCRIPT] [--native] [--frontend]\n"
                     "            [path/to/SIMCITY.EXE] [game arguments...]\n");
 }
 
 int fx_selftest(void);                                     /* fx.c */
 void fx_init(void);
+void frontend_enable(void);                                 /* frontend.cpp */
+void frontend_start(const char *ini);
 
 int main(int argc, char **argv) {
     if (argc > 1 && !strcmp(argv[1], "--selftest")) return fx_selftest();
     if (!GetEnvironmentVariableA("SC2K_CHILD", NULL, 0)) return relaunch_reserved();
     const char *exe = "game/SIMCITY.EXE", *record = NULL, *input = NULL;
-    int headless = 0, native = 0, fps = 10, i = 1;
+    int headless = 0, native = 0, frontend = 0, fps = 10, i = 1;
     double seconds = 0;
     for (; i < argc && argv[i][0] == '-' && argv[i][1] == '-'; i++) {
         if (!strcmp(argv[i], "--headless")) headless = 1;
         else if (!strcmp(argv[i], "--native")) native = 1;
+        else if (!strcmp(argv[i], "--frontend")) frontend = headless = 1;
         else if (!strcmp(argv[i], "--record") && i + 1 < argc) record = argv[++i];
         else if (!strcmp(argv[i], "--input") && i + 1 < argc) input = argv[++i];
         else if (!strcmp(argv[i], "--fps") && i + 1 < argc) fps = atoi(argv[++i]);
@@ -537,6 +544,7 @@ int main(int argc, char **argv) {
     /* Only now: anything that allocates must wait until the image owns its range. */
     registry_defaults();
     fx_init();
+    if (frontend) frontend_enable();
     if (headless && !headless_init()) return 2;
     if (record && !record_start(record, fps, seconds)) return 2;
     exit_after(seconds);
@@ -549,6 +557,14 @@ int main(int argc, char **argv) {
      * reserves it before main runs, low in the address space -- a 16 MB one
      * sat exactly on 0x00400000 and the game image had nowhere to go. */
     InitializeCriticalSection(&g_gil);
+    if (frontend) {
+        /* settings beside sc2k.exe, so each build keeps its own */
+        char ini[MAX_PATH];
+        GetModuleFileNameA(NULL, ini, sizeof ini);
+        char *e = strrchr(ini, '\\');
+        strcpy(e ? e + 1 : ini, "sc2k.ini");
+        frontend_start(ini);
+    }
     HANDLE t = CreateThread(NULL, 64u << 20, guest_main, NULL, STACK_SIZE_PARAM_IS_A_RESERVATION, NULL);
     if (!t) { fprintf(stderr, "[host] cannot start the guest thread\n"); return 2; }
     WaitForSingleObject(t, INFINITE);

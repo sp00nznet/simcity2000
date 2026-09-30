@@ -1,0 +1,10 @@
+SimCity 2000 static recompilation
+Copyright (c) 2026 sp00nz -- MIT, see LICENSE.
+
+This repository includes third-party software:
+
+  Dear ImGui 1.90.9 (third_party/imgui)
+  Copyright (c) 2014-2024 Omar Cornut
+  MIT License -- see LICENSES/imgui.txt
+
+SimCity 2000 is (c) Maxis / Electronic Arts. No game code or data is included.

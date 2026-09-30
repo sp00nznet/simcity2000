@@ -56,12 +56,17 @@ static int emulating(void) {
 
 /* The city view's DCs, and the game's untinted colours for each. */
 #define MAX_WORLD 8
-static struct { HDC dc; RGBQUAD base[256]; } g_world[MAX_WORLD];
+/* Keyed by bitmap, not DC: the game draws the toolbar's icons and the city
+ * through the same memory DC with different bitmaps selected, and keying by
+ * DC put the toolbar through the night too. */
+static struct { HBITMAP bmp; HDC dc; RGBQUAD base[256]; } g_world[MAX_WORLD];
 static int g_nworld;
 static fx_state_t g_applied;         /* the state the world tables were last tinted for */
 
 static int world_index(HDC dc) {
-    for (int i = 0; i < g_nworld; i++) if (g_world[i].dc == dc) return i;
+    HBITMAP b = (HBITMAP)GetCurrentObject(dc, OBJ_BITMAP);
+    for (int i = 0; i < g_nworld; i++)
+        if (g_world[i].bmp == b) { g_world[i].dc = dc; return i; }
     return -1;
 }
 
@@ -81,7 +86,9 @@ static void retint_if_needed(void) {
     fx_state(&st);
     if (!state_changed(&st, &g_applied)) return;
     g_applied = st;
-    for (int i = 0; i < g_nworld; i++) tint_into(g_world[i].dc, g_world[i].base, 0, 256, &st);
+    for (int i = 0; i < g_nworld; i++)       /* only where the bitmap is still selected */
+        if ((HBITMAP)GetCurrentObject(g_world[i].dc, OBJ_BITMAP) == g_world[i].bmp)
+            tint_into(g_world[i].dc, g_world[i].base, 0, 256, &st);
 }
 
 static int is_8bit_dib(HDC dc) {
@@ -96,6 +103,7 @@ static void remember(HDC dst, int x, int y, int w, int h, HDC src, int sx, int s
     if (rop != SRCCOPY || !src || !hwnd || !is_8bit_dib(src)) return;
     if (w * h >= 300000 && world_index(src) < 0 && g_nworld < MAX_WORLD) {
         g_world[g_nworld].dc = src;
+        g_world[g_nworld].bmp = (HBITMAP)GetCurrentObject(src, OBJ_BITMAP);
         GetDIBColorTable(src, 0, 256, g_world[g_nworld].base);   /* first sight: take it as the game's */
         g_nworld++;
         g_applied.month = -1;                                      /* force a tint */

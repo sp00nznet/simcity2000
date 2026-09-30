@@ -188,7 +188,11 @@ void exit_after(double seconds) {
 #define HEADLESS_W 1600
 #define HEADLESS_H 960
 
+static HWND g_frame;                      /* the game's main frame, once shown */
+HWND game_frame_window(void) { return g_frame; }
+
 static BOOL WINAPI o_ShowWindow(HWND h, int cmd) {
+    if (cmd == SW_SHOWMAXIMIZED && !GetParent(h) && !GetWindow(h, GW_OWNER)) g_frame = h;
     if (g_desk && cmd == SW_SHOWMAXIMIZED && !GetParent(h) && !GetWindow(h, GW_OWNER)) {
         BOOL r = ShowWindow(h, SW_SHOWNORMAL);
         SetWindowPos(h, NULL, 0, 0, HEADLESS_W, HEADLESS_H, SWP_NOZORDER | SWP_NOACTIVATE);

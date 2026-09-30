@@ -10,7 +10,7 @@ call "%VS%\VC\Auxiliary\Build\vcvars32.bat" >nul || exit /b 1
 set "PATH=%ProgramFiles%\LLVM\bin;%PATH%"
 cd /d "%~dp0.."
 rem clang-cl targets x64 whatever vcvars says; the target has to be named.
-if not exist build\build.ninja cmake -B build -G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_C_COMPILER_TARGET=i686-pc-windows-msvc -DCMAKE_BUILD_TYPE=Release || exit /b 1
+if not exist build\build.ninja cmake -B build -G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_C_COMPILER_TARGET=i686-pc-windows-msvc -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_CXX_COMPILER_TARGET=i686-pc-windows-msvc -DCMAKE_BUILD_TYPE=Release || exit /b 1
 rem PCRECOMP names the pcrecomp checkout to build against (default ..\tools).
 if defined PCRECOMP cmake -B build "-DPCRECOMP=%PCRECOMP%" >nul || exit /b 1
 cmake --build build %*

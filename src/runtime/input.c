@@ -27,8 +27,9 @@
 HDESK headless_desktop(void);     /* capture.c */
 
 static int   g_scripted;
+static int   g_live;             /* the frontend is feeding real input */
 static POINT g_cur;
-static int   g_ldown;
+static int   g_ldown, g_rdown;
 static DWORD g_game_tid;
 
 void input_game_thread(void) { g_game_tid = GetCurrentThreadId(); }
@@ -215,7 +216,7 @@ static DWORD WINAPI input_thread(LPVOID arg) {
         fprintf(stderr, "[input] %.1fs %s %d,%d%s -> %p\n", t, verb, a, b,
                 !strcmp(verb, "drag") ? " (drag)" : "", (void *)h);
     }
-    g_scripted = 0;     /* the real cursor again, once the script is done */
+    if (!g_live) g_scripted = 0;     /* the real cursor again, once the script is done */
     return 0;
 }
 
@@ -235,13 +236,19 @@ static DWORD WINAPI o_GetMessagePos(void) {
     return g_scripted ? (DWORD)MAKELONG(g_cur.x, g_cur.y) : GetMessagePos();
 }
 
+/* Buttons come from the synthetic state. Keys too, in a script; with the
+ * frontend the player is really pressing them, but on another thread's queue,
+ * so the game thread's GetKeyState would never see Shift: ask the hardware. */
 static SHORT WINAPI o_GetKeyState(int vk) {
     if (g_scripted && vk == VK_LBUTTON) return g_ldown ? (SHORT)0x8000 : 0;
+    if (g_scripted && vk == VK_RBUTTON) return g_rdown ? (SHORT)0x8000 : 0;
+    if (g_live) return (SHORT)(GetAsyncKeyState(vk) & 0x8000);
     return GetKeyState(vk);
 }
 
 static SHORT WINAPI o_GetAsyncKeyState(int vk) {
     if (g_scripted && vk == VK_LBUTTON) return g_ldown ? (SHORT)0x8000 : 0;
+    if (g_scripted && vk == VK_RBUTTON) return g_rdown ? (SHORT)0x8000 : 0;
     return GetAsyncKeyState(vk);
 }
 
@@ -252,3 +259,101 @@ void *input_override(const char *name) {
     if (!strcmp(name, "GetAsyncKeyState")) return (void *)o_GetAsyncKeyState;
     return NULL;
 }
+
+/* ---- live input, from the frontend ----
+ *
+ * The frontend's window is on the user's desktop and the game on the headless
+ * one, so its mouse and keys are queued here and delivered by a worker thread
+ * that lives on the game's desktop. Coordinates arrive in the picture's space
+ * (frame.c: the main frame's client area). A button press picks its window
+ * by hit test and keeps it until release, the way mouse capture would. */
+POINT frame_origin(void);                  /* frame.c */
+HWND  game_frame_window(void);             /* capture.c */
+
+typedef struct { int kind; UINT msg; WPARAM w; LPARAM l; int x, y; } live_ev_t;
+enum { EV_MOUSE, EV_KEY, EV_COMMAND, EV_INITMENU };
+
+#define LIVE_Q 1024
+static live_ev_t g_q[LIVE_Q];
+static volatile LONG g_qhead, g_qtail;
+static HANDLE g_qevent;
+static CRITICAL_SECTION g_qlock;
+
+static void live_push(live_ev_t e) {
+    EnterCriticalSection(&g_qlock);
+    if (g_qtail - g_qhead < LIVE_Q) g_q[g_qtail++ % LIVE_Q] = e;
+    LeaveCriticalSection(&g_qlock);
+    SetEvent(g_qevent);
+}
+
+static HWND game_focus(void) {
+    GUITHREADINFO gi = { sizeof gi };
+    GetGUIThreadInfo(g_game_tid, &gi);
+    return gi.hwndFocus ? gi.hwndFocus : gi.hwndActive ? gi.hwndActive : game_frame_window();
+}
+
+static void live_mouse(live_ev_t *e) {
+    static HWND capture;
+    POINT o = frame_origin();
+    POINT scr = { o.x + e->x, o.y + e->y };
+    HWND h;
+    if (e->msg == WM_MOUSEWHEEL) {
+        h = window_at(scr);
+        if (h) PostMessageA(h, WM_MOUSEWHEEL, e->w, MAKELPARAM(scr.x, scr.y));   /* wheel is in screen space */
+        return;
+    }
+    int down = e->msg == WM_LBUTTONDOWN || e->msg == WM_RBUTTONDOWN;
+    h = (capture && IsWindow(capture) && !down) ? capture : window_at(scr);
+    if (!h) return;
+    if (down) capture = h;
+    if (e->msg == WM_LBUTTONDOWN) g_ldown = 1;
+    if (e->msg == WM_LBUTTONUP) g_ldown = 0;
+    if (e->msg == WM_RBUTTONDOWN) g_rdown = 1;
+    if (e->msg == WM_RBUTTONUP) g_rdown = 0;
+    if (!g_ldown && !g_rdown) capture = NULL;
+    g_cur = scr;
+    POINT c = scr;
+    ScreenToClient(h, &c);
+    PostMessageA(h, e->msg, e->w, MAKELPARAM(c.x, c.y));
+}
+
+static DWORD WINAPI live_thread(LPVOID unused) {
+    (void)unused;
+    HDESK desk = headless_desktop();
+    if (desk) SetThreadDesktop(desk);
+    for (;;) {
+        WaitForSingleObject(g_qevent, INFINITE);
+        for (;;) {
+            live_ev_t e;
+            EnterCriticalSection(&g_qlock);
+            int have = g_qhead != g_qtail;
+            if (have) e = g_q[g_qhead++ % LIVE_Q];
+            LeaveCriticalSection(&g_qlock);
+            if (!have) break;
+            switch (e.kind) {
+            case EV_MOUSE: live_mouse(&e); break;
+            case EV_KEY: PostMessageA(game_focus(), e.msg, e.w, e.l); break;
+            case EV_COMMAND: PostMessageA(game_frame_window(), WM_COMMAND, e.w, 0); break;
+            case EV_INITMENU:
+                /* MFC sets check marks and greying in WM_INITMENUPOPUP; send
+                 * it so the frontend's copy of the menu reads current state. */
+                SendMessageTimeoutA(game_frame_window(), WM_INITMENUPOPUP, e.w, e.l, SMTO_ABORTIFHUNG, 200, NULL);
+                break;
+            }
+        }
+    }
+    return 0;
+}
+
+void input_live_start(void) {
+    InitializeCriticalSection(&g_qlock);
+    g_qevent = CreateEventA(NULL, FALSE, FALSE, NULL);
+    g_scripted = 1;
+    g_live = 1;
+    CreateThread(NULL, 0, live_thread, NULL, 0, NULL);
+}
+
+void input_live_mouse(UINT msg, WPARAM keys, int x, int y) { live_ev_t e = { EV_MOUSE, msg, keys, 0, x, y }; live_push(e); }
+void input_live_key(UINT msg, WPARAM w, LPARAM l)          { live_ev_t e = { EV_KEY, msg, w, l, 0, 0 }; live_push(e); }
+void input_live_command(UINT id)                           { live_ev_t e = { EV_COMMAND, 0, id, 0, 0, 0 }; live_push(e); }
+void input_live_initmenu(HMENU sub, int index)             { live_ev_t e = { EV_INITMENU, 0, (WPARAM)sub, index, 0, 0 }; live_push(e); }

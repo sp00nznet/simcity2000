@@ -49,6 +49,7 @@ the game's own code, recompiled.
 | Palette animation (traffic, lights) | Working: the host emulates a 256-colour palette display |
 | Intro movie | Skipped — the game looks for the CD, and says so |
 | Sound and music | Working in play (not checked by the headless runs) |
+| Frontend window: filters, glow, CRT, menu bar, cheats | Working (`--frontend`) |
 | Speed | Measured a month behind the original over five minutes, on a machine that was saturated by other builds at the time — to be re-measured |
 
 Needs two pcrecomp fixes that are in review: pcrecomp#6 (`lift32` narrow
@@ -124,6 +125,9 @@ build\sc2k.exe [--headless] [--record out.mp4] [--fps N] [--seconds N]
 - `--seconds N` exits after N seconds.
 - Anything after the game's path goes to the game; a city file opens that
   city: `build\sc2k.exe game\SIMCITY.EXE CITIES\NYC.SC2`.
+- `--frontend` plays in the host's own window: shader filters, glow, CRT, and a
+  menu bar with the game's menus plus Graphics, Effects, Display, Debug and
+  Cheats (docs/frontend.md).
 - `--native` runs the **original** `SIMCITY.EXE` instead, on the same desktop
   with the same recorder and script: the reference to compare against.
 - `--input SCRIPT` plays scripted input, `T:verb args` separated by `;`, with T
@@ -155,7 +159,8 @@ what the installer would have written, without overwriting anything present.
 mapped at its original address, its imports are bound to the real Win32 API,
 and callbacks from Windows into the game are caught with a DEP trap.
 [docs/bringup-notes.md](docs/bringup-notes.md) has the problems that took the
-longest to find, and [docs/effects.md](docs/effects.md) the optional effects.
+longest to find, and [docs/effects.md](docs/effects.md) the optional effects, and
+[docs/frontend.md](docs/frontend.md) the frontend window.
 
 ## Building from source
 
