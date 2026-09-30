@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Play menu: turbo up to 8x (the game's 200 ms timer, shortened; measured 4.0x
+  at 4x), mouse-wheel zoom, autosave for named cities.
+- The frontend is the default; `--classic` shows the game's own windows.
+
 - `--frontend`: the game in the host's own Direct3D 11 window, with upscaling
   filters (nearest, smooth, sharp bilinear, Scale2x), glow, CRT, fullscreen,
   and a Dear ImGui menu bar: the game's menus mirrored with live check marks,

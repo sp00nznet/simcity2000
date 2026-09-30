@@ -48,6 +48,8 @@ void     input_live_initmenu(HMENU sub, int index);
 void     guest_lock(void);
 void     guest_unlock(void);
 void     frame_start(void);
+void     qol_set_turbo(int factor);
+int      qol_turbo(void);
 }
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
@@ -69,6 +71,9 @@ struct Settings {
     bool  vsync = true;
     bool  fullscreen = false;
     bool  stats = false;
+    bool  wheel_zoom = true;
+    int   turbo = 1;
+    int   autosave_min = 0;         /* 0 = off */
     bool  hold_funds = false;
     int   held_funds = 0;
 };
@@ -93,6 +98,9 @@ static void load_settings() {
     S.glow_k = getf("glow_strength", S.glow_k);
     S.glow_threshold = getf("glow_threshold", S.glow_threshold);
     S.vsync = geti("vsync", S.vsync);
+    S.wheel_zoom = geti("wheel_zoom", S.wheel_zoom);
+    S.turbo = geti("turbo", S.turbo);
+    S.autosave_min = geti("autosave_minutes", S.autosave_min);
     g_fx.daynight = geti("daynight", g_fx.daynight);
     g_fx.seasons = geti("seasons", g_fx.seasons);
     g_fx.weather = geti("weather", g_fx.weather);
@@ -107,6 +115,7 @@ static void save_settings() {
     putf("crt_curve", S.curve); putf("crt_scanlines", S.scan); putf("crt_mask", S.mask); putf("crt_vignette", S.vignette);
     puti("glow", S.glow); putf("glow_strength", S.glow_k); putf("glow_threshold", S.glow_threshold);
     puti("vsync", S.vsync);
+    puti("wheel_zoom", S.wheel_zoom); puti("turbo", S.turbo); puti("autosave_minutes", S.autosave_min);
     puti("daynight", g_fx.daynight); puti("seasons", g_fx.seasons); puti("weather", g_fx.weather);
     puti("cycle_days", g_fx.cycle_days); putf("night_depth", g_fx.night_depth);
 }
@@ -493,6 +502,20 @@ static void set_funds(int v) {
 
 static void set_fullscreen(bool on);
 
+/* File > Save City, every so often, for a city that has a file already. An
+ * unsaved "New City" would open the Save As dialog instead, so it is skipped. */
+static void autosave_tick() {
+    static DWORD last = GetTickCount();
+    if (!S.autosave_min || GetTickCount() - last < (DWORD)S.autosave_min * 60000) return;
+    last = GetTickCount();
+    char title[256] = "";
+    HWND frame = game_frame_window();
+    if (!frame || !GetWindowTextA(frame, title, sizeof title) || strstr(title, "<New City>") || !strchr(title, '<'))
+        return;
+    input_live_command(0x8025);
+    fprintf(stderr, "[frontend] autosave\n");
+}
+
 static void host_menus() {
     bool changed = false;
     if (ImGui::BeginMenu("Graphics")) {
@@ -522,6 +545,25 @@ static void host_menus() {
         if (ImGui::MenuItem("Weather", nullptr, &we)) { g_fx.weather = we; changed = true; }
         changed |= ImGui::SliderInt("Days per cycle", &g_fx.cycle_days, 5, 300);
         changed |= ImGui::SliderFloat("Night depth", &g_fx.night_depth, 0.0f, 0.95f);
+        ImGui::EndMenu();
+    }
+    if (ImGui::BeginMenu("Play")) {
+        ImGui::TextDisabled("Turbo (on top of the game's speed)");
+        const int speeds[] = { 1, 2, 4, 8 };
+        for (int k : speeds) {
+            char lab[16];
+            snprintf(lab, sizeof lab, k == 1 ? "Normal" : "%dx", k);
+            if (ImGui::MenuItem(lab, nullptr, S.turbo == k)) { S.turbo = k; qol_set_turbo(k); changed = true; }
+        }
+        ImGui::Separator();
+        changed |= ImGui::MenuItem("Mouse wheel zooms", nullptr, &S.wheel_zoom);
+        ImGui::TextDisabled("Autosave (named cities only)");
+        const int every[] = { 0, 5, 10, 30 };
+        for (int m : every) {
+            char lab[24];
+            snprintf(lab, sizeof lab, m ? "Every %d minutes" : "Off", m);
+            if (ImGui::MenuItem(lab, nullptr, S.autosave_min == m)) { S.autosave_min = m; changed = true; }
+        }
         ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Display")) {
@@ -617,8 +659,18 @@ static LRESULT CALLBACK wndproc(HWND h, UINT msg, WPARAM w, LPARAM l) {
             if (to_game(p.x, p.y, &gx, &gy)) { SetCursor(g_game_cursor); return TRUE; }
         }
         break;
+    case WM_MOUSEWHEEL:
+        if (S.wheel_zoom && !(io && io->WantCaptureMouse)) {
+            /* The game's own zoom commands (the toolbar's magnifiers). */
+            static int acc;
+            acc += GET_WHEEL_DELTA_WPARAM(w);
+            while (acc >= WHEEL_DELTA) { input_live_command(0x20); acc -= WHEEL_DELTA; }
+            while (acc <= -WHEEL_DELTA) { input_live_command(0x21); acc += WHEEL_DELTA; }
+            return 0;
+        }
+        /* fall through */
     case WM_MOUSEMOVE: case WM_LBUTTONDOWN: case WM_LBUTTONUP: case WM_RBUTTONDOWN: case WM_RBUTTONUP:
-    case WM_LBUTTONDBLCLK: case WM_MOUSEWHEEL: {
+    case WM_LBUTTONDBLCLK: {
         if (io && io->WantCaptureMouse && msg != WM_LBUTTONUP && msg != WM_RBUTTONUP) break;
         POINT p = { (short)LOWORD(l), (short)HIWORD(l) };
         if (msg == WM_MOUSEWHEEL) ScreenToClient(h, &p);
@@ -689,6 +741,7 @@ static DWORD WINAPI frontend_thread(LPVOID) {
             DispatchMessageA(&m);
         }
         if (S.hold_funds && GAME_FUNDS != S.held_funds) set_funds(S.held_funds);
+        autosave_tick();
         upload_frame();
 
         ImGui_ImplDX11_NewFrame();
@@ -764,6 +817,7 @@ static DWORD WINAPI ui_script_thread(LPVOID arg) {
 extern "C" void frontend_start(const char *ini_path) {
     snprintf(g_ini, sizeof g_ini, "%s", ini_path);
     load_settings();
+    qol_set_turbo(S.turbo);
     g_popup.done = CreateEventA(nullptr, FALSE, FALSE, nullptr);
     frame_start();
     input_live_start();

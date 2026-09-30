@@ -457,12 +457,13 @@ static int run_native(int headless, const char *input) {
 }
 
 static void usage(void) {
-    fprintf(stderr, "usage: sc2k [--headless] [--record out.mp4] [--fps N] [--seconds N] [--input SCRIPT] [--native] [--frontend]\n"
+    fprintf(stderr, "usage: sc2k [--headless] [--record out.mp4] [--fps N] [--seconds N] [--input SCRIPT] [--native] [--classic]\n"
                     "            [path/to/SIMCITY.EXE] [game arguments...]\n");
 }
 
 int fx_selftest(void);                                     /* fx.c */
 void fx_init(void);
+void qol_set_turbo(int factor);                             /* qol.c */
 void frontend_enable(void);                                 /* frontend.cpp */
 void frontend_start(const char *ini);
 
@@ -470,12 +471,13 @@ int main(int argc, char **argv) {
     if (argc > 1 && !strcmp(argv[1], "--selftest")) return fx_selftest();
     if (!GetEnvironmentVariableA("SC2K_CHILD", NULL, 0)) return relaunch_reserved();
     const char *exe = "game/SIMCITY.EXE", *record = NULL, *input = NULL;
-    int headless = 0, native = 0, frontend = 0, fps = 10, i = 1;
+    int headless = 0, native = 0, frontend = 0, classic = 0, fps = 10, i = 1;
     double seconds = 0;
     for (; i < argc && argv[i][0] == '-' && argv[i][1] == '-'; i++) {
         if (!strcmp(argv[i], "--headless")) headless = 1;
         else if (!strcmp(argv[i], "--native")) native = 1;
         else if (!strcmp(argv[i], "--frontend")) frontend = headless = 1;
+        else if (!strcmp(argv[i], "--classic")) classic = 1;
         else if (!strcmp(argv[i], "--record") && i + 1 < argc) record = argv[++i];
         else if (!strcmp(argv[i], "--input") && i + 1 < argc) input = argv[++i];
         else if (!strcmp(argv[i], "--fps") && i + 1 < argc) fps = atoi(argv[++i]);
@@ -483,6 +485,9 @@ int main(int argc, char **argv) {
         else { usage(); return 2; }
     }
     if (i < argc) exe = argv[i++];
+    /* The frontend is how the game is played; the game's own windows are
+     * --classic, and the tooling modes keep their own presentation. */
+    if (!headless && !classic && !native && !record) frontend = headless = 1;
     if (!GetFullPathNameA(exe, sizeof g_game_exe, g_game_exe, NULL)) return 2;
     int n = snprintf(g_guest_cmdline, sizeof g_guest_cmdline, "\"%s\"", g_game_exe);
     for (; i < argc && n < (int)sizeof g_guest_cmdline; i++)
@@ -544,6 +549,10 @@ int main(int argc, char **argv) {
     /* Only now: anything that allocates must wait until the image owns its range. */
     registry_defaults();
     fx_init();
+    {
+        char tv[8];
+        if (GetEnvironmentVariableA("SC2K_TURBO", tv, sizeof tv)) qol_set_turbo(atoi(tv));
+    }
     if (frontend) frontend_enable();
     if (headless && !headless_init()) return 2;
     if (record && !record_start(record, fps, seconds)) return 2;

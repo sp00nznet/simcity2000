@@ -206,6 +206,7 @@ void *palette_override(const char *name);   /* palette.c */
 void *input_override(const char *name);     /* input.c */
 void *capture_override(const char *name);   /* capture.c */
 void *frontend_override(const char *name);  /* frontend.cpp */
+void *qol_override(const char *name);       /* qol.c */
 
 void *override_for(const char *dll, const char *name) {
     (void)dll;
@@ -213,6 +214,7 @@ void *override_for(const char *dll, const char *name) {
     if (!p) p = input_override(name);
     if (!p) p = capture_override(name);
     if (!p) p = frontend_override(name);
+    if (!p) p = qol_override(name);
     if (p) return p;
     for (size_t i = 0; i < sizeof table / sizeof table[0]; i++)
         if (!strcmp(table[i].name, name)) return table[i].fn;
