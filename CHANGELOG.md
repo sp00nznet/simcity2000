@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- African Swallow ran the simulation flat out, a day per idle pass, so on a
+  modern PC a new city's first year took a fifth of a second and the budget
+  and newspaper came back to back (the original exe does it too). It now runs
+  two days per timer tick, twice Cheetah, and follows the speed slider.
+- Frontend: the File dialog's list scrolls -- scroll bar (arrows, page, thumb),
+  mouse wheel, and arrow keys after clicking a file. Clicks move the game's
+  keyboard focus, the wheel zooms only over the city, and dialogs' close
+  buttons work.
+- Frontend: the picture sits right under the menu bar instead of centred.
+
 ### Changed
 
 - Play menu: the turbo choices are now a speed slider from 5% to 800%. The game

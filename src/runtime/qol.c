@@ -88,6 +88,24 @@ void qol_set_speed(int pct) {
 }
 
 
+/* African Swallow (speed 5) skips the timer: the game's idle handler runs a
+ * day on every pass, as fast as the CPU goes. A 1996 PC managed a few days a
+ * second; now a year of an empty city is gone in a fifth of a second and the
+ * budget and newspaper arrive back to back. So it gets a quota instead: two
+ * days a timer tick, twice Cheetah, scaled by the speed like everything else.
+ * ponytail: credit capped at two days, so a pause or a dialog banks nothing. */
+int qol_swallow_day(void) {
+    static double credit;
+    static DWORD last;
+    DWORD now = timeGetTime();
+    if (last) credit += (now - last) * 0.01 * g_pct / 100;
+    last = now;
+    if (credit > 2) credit = 2;
+    if (credit < 1) return 0;
+    credit -= 1;
+    return 1;
+}
+
 void *qol_override(const char *name) {
     if (!strcmp(name, "timeSetEvent")) return (void *)o_timeSetEvent;
     if (!strcmp(name, "timeKillEvent")) return (void *)o_timeKillEvent;

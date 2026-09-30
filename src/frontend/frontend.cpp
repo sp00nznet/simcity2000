@@ -43,6 +43,7 @@ HWND     game_frame_window(void);
 void     input_live_start(void);
 void     input_live_mouse(UINT msg, WPARAM keys, int x, int y);
 void     input_live_key(UINT msg, WPARAM w, LPARAM l);
+void     input_live_wheel(WPARAM w, int x, int y, int zoom);
 void     input_live_command(UINT id);
 void     input_live_initmenu(HMENU sub, int index);
 void     guest_lock(void);
@@ -381,7 +382,7 @@ static void render_picture(int cw, int ch, int top) {
     float scale = std::min((float)aw / g_tex_w, (float)ah / g_tex_h);
     if (S.integer && scale >= 1) scale = floorf(scale);
     int dw = (int)(g_tex_w * scale), dh = (int)(g_tex_h * scale);
-    g_dest = { (aw - dw) / 2, top + (ah - dh) / 2, (aw - dw) / 2 + dw, top + (ah - dh) / 2 + dh };
+    g_dest = { (aw - dw) / 2, top, (aw - dw) / 2 + dw, top + dh };      /* hard under the menu bar */
 
     g_ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     g_ctx->IASetInputLayout(nullptr);
@@ -777,21 +778,19 @@ static LRESULT CALLBACK wndproc(HWND h, UINT msg, WPARAM w, LPARAM l) {
             if (to_game(p.x, p.y, &gx, &gy)) { SetCursor(g_game_cursor); return TRUE; }
         }
         break;
-    case WM_MOUSEWHEEL:
-        if (S.wheel_zoom && !(io && io->WantCaptureMouse)) {
-            /* The game's own zoom commands (the toolbar's magnifiers). */
-            static int acc;
-            acc += GET_WHEEL_DELTA_WPARAM(w);
-            while (acc >= WHEEL_DELTA) { input_live_command(0x20); acc -= WHEEL_DELTA; }
-            while (acc <= -WHEEL_DELTA) { input_live_command(0x21); acc += WHEEL_DELTA; }
-            return 0;
-        }
-        /* fall through */
+    case WM_MOUSEWHEEL: {
+        /* input.c zooms over the city, if the setting is on, and scrolls in dialogs */
+        if (io && io->WantCaptureMouse) break;
+        POINT p = { (short)LOWORD(l), (short)HIWORD(l) };
+        ScreenToClient(h, &p);
+        int gx, gy;
+        if (to_game(p.x, p.y, &gx, &gy)) input_live_wheel(w, gx, gy, S.wheel_zoom);
+        return 0;
+    }
     case WM_MOUSEMOVE: case WM_LBUTTONDOWN: case WM_LBUTTONUP: case WM_RBUTTONDOWN: case WM_RBUTTONUP:
     case WM_LBUTTONDBLCLK: {
         if (io && io->WantCaptureMouse && msg != WM_LBUTTONUP && msg != WM_RBUTTONUP) break;
         POINT p = { (short)LOWORD(l), (short)HIWORD(l) };
-        if (msg == WM_MOUSEWHEEL) ScreenToClient(h, &p);
         int gx, gy;
         if (msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN) SetCapture(h);
         if (msg == WM_LBUTTONUP || msg == WM_RBUTTONUP) ReleaseCapture();
@@ -896,7 +895,8 @@ static DWORD WINAPI frontend_thread(LPVOID) {
     return 0;
 }
 
-/* SC2K_UISCRIPT="T:click X,Y; T:move X,Y; T:key VK": test input for the
+/* SC2K_UISCRIPT="T:click X,Y; T:move X,Y; T:down X,Y; T:up X,Y;
+ * T:wheelup X,Y; T:wheeldown X,Y; T:key VK": test input for the
  * frontend window itself (its menu bar, the picture), posted to it the way
  * --input posts to the game. For checking the bar without a real mouse. */
 static DWORD WINAPI ui_script_thread(LPVOID arg) {
@@ -921,6 +921,15 @@ static DWORD WINAPI ui_script_thread(LPVOID arg) {
             PostMessageA(g_hwnd, WM_LBUTTONDOWN, MK_LBUTTON, lp);
             Sleep(80);
             PostMessageA(g_hwnd, WM_LBUTTONUP, 0, lp);
+        } else if (!strcmp(verb, "down")) {                 /* down, move..., up: a drag */
+            PostMessageA(g_hwnd, WM_LBUTTONDOWN, MK_LBUTTON, lp);
+        } else if (!strcmp(verb, "up")) {
+            PostMessageA(g_hwnd, WM_LBUTTONUP, 0, lp);
+        } else if (!strcmp(verb, "wheelup") || !strcmp(verb, "wheeldown")) {
+            POINT p = { x, y };
+            ClientToScreen(g_hwnd, &p);                      /* the wheel is in screen space */
+            PostMessageA(g_hwnd, WM_MOUSEWHEEL, MAKEWPARAM(0, verb[5] == 'u' ? WHEEL_DELTA : -WHEEL_DELTA),
+                         MAKELPARAM(p.x, p.y));
         } else if (!strcmp(verb, "key")) {
             PostMessageA(g_hwnd, WM_KEYDOWN, x, 1);
             PostMessageA(g_hwnd, WM_KEYUP, x, 0xC0000001);

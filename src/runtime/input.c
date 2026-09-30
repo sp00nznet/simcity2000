@@ -292,6 +292,71 @@ static HWND game_focus(void) {
     return gi.hwndFocus ? gi.hwndFocus : gi.hwndActive ? gi.hwndActive : game_frame_window();
 }
 
+/* In a dialog (the File dialog, the budget), not the city. */
+static int in_dialog(HWND h) {
+    char cls[16];
+    return GetClassNameA(GetAncestor(h, GA_ROOT), cls, sizeof cls) && !strcmp(cls, "#32770");
+}
+
+/* A posted click in a scroll bar does nothing: the bar is non-client, and a
+ * real click there runs a tracking loop on the live mouse. So a click on one
+ * becomes the scroll message it would have made -- a line at the arrows, a
+ * page either side of the thumb -- and a thumb drag walks the position line by
+ * line (a list view ignores SB_THUMBTRACK's position unless it is really
+ * tracking). ponytail: no auto-repeat while an arrow is held. */
+static struct { HWND h; int bar; int from; int pos0; } g_thumb;
+
+static void scroll_line(HWND h, int bar, int code) {
+    PostMessageA(h, bar == SB_VERT ? WM_VSCROLL : WM_HSCROLL, code, 0);
+}
+
+static void scroll_click(HWND h, int bar, POINT scr) {
+    SCROLLBARINFO sb = { sizeof sb };
+    if (!GetScrollBarInfo(h, bar == SB_VERT ? OBJID_VSCROLL : OBJID_HSCROLL, &sb)) return;
+    int at = bar == SB_VERT ? scr.y - sb.rcScrollBar.top : scr.x - sb.rcScrollBar.left;
+    int len = bar == SB_VERT ? sb.rcScrollBar.bottom - sb.rcScrollBar.top : sb.rcScrollBar.right - sb.rcScrollBar.left;
+    if (at < sb.dxyLineButton) scroll_line(h, bar, SB_LINEUP);
+    else if (at >= len - sb.dxyLineButton) scroll_line(h, bar, SB_LINEDOWN);
+    else if (at < sb.xyThumbTop) scroll_line(h, bar, SB_PAGEUP);
+    else if (at >= sb.xyThumbBottom) scroll_line(h, bar, SB_PAGEDOWN);
+    else {
+        SCROLLINFO si = { sizeof si, SIF_POS };
+        GetScrollInfo(h, bar, &si);
+        g_thumb.h = h; g_thumb.bar = bar; g_thumb.from = at; g_thumb.pos0 = si.nPos;
+    }
+}
+
+static void thumb_drag(POINT scr) {
+    SCROLLBARINFO sb = { sizeof sb };
+    SCROLLINFO si = { sizeof si, SIF_ALL };
+    HWND h = g_thumb.h;
+    int bar = g_thumb.bar;
+    if (!IsWindow(h) || !GetScrollBarInfo(h, bar == SB_VERT ? OBJID_VSCROLL : OBJID_HSCROLL, &sb) ||
+        !GetScrollInfo(h, bar, &si)) return;
+    int at = bar == SB_VERT ? scr.y - sb.rcScrollBar.top : scr.x - sb.rcScrollBar.left;
+    int len = bar == SB_VERT ? sb.rcScrollBar.bottom - sb.rcScrollBar.top : sb.rcScrollBar.right - sb.rcScrollBar.left;
+    int track = len - 2 * sb.dxyLineButton - (sb.xyThumbBottom - sb.xyThumbTop);
+    int range = si.nMax - si.nMin + 1 - (int)si.nPage;
+    if (track <= 0 || range <= 0) return;
+    int want = g_thumb.pos0 + (at - g_thumb.from) * range / track;
+    want = want < si.nMin ? si.nMin : want > si.nMin + range ? si.nMin + range : want;
+    for (int n = want - si.nPos; n; n += n > 0 ? -1 : 1)
+        SendMessageTimeoutA(h, bar == SB_VERT ? WM_VSCROLL : WM_HSCROLL, n > 0 ? SB_LINEDOWN : SB_LINEUP, 0,
+                            SMTO_ABORTIFHUNG, 200, NULL);
+}
+
+/* The game's thread focus, moved to what was clicked. A real click would move
+ * it; a posted one does not always (the File dialog's list kept it on the name
+ * box), and then the arrow keys went to the wrong control. */
+static void focus(HWND h) {
+    if (!IsWindowEnabled(GetAncestor(h, GA_ROOT))) return;     /* behind a modal dialog */
+    DWORD me = GetCurrentThreadId();
+    if (AttachThreadInput(me, g_game_tid, TRUE)) {
+        SetFocus(h);
+        AttachThreadInput(me, g_game_tid, FALSE);
+    }
+}
+
 static void live_mouse(live_ev_t *e) {
     static HWND capture;
     POINT o = frame_origin();
@@ -299,12 +364,33 @@ static void live_mouse(live_ev_t *e) {
     HWND h;
     if (e->msg == WM_MOUSEWHEEL) {
         h = window_at(scr);
-        if (h) PostMessageA(h, WM_MOUSEWHEEL, e->w, MAKELPARAM(scr.x, scr.y));   /* wheel is in screen space */
+        if (!h) return;
+        if (e->l && !in_dialog(h)) {
+            /* over the city: the toolbar's zoom commands (0x20 in, 0x21 out) */
+            static int acc;
+            acc += GET_WHEEL_DELTA_WPARAM(e->w);
+            for (; acc >= WHEEL_DELTA; acc -= WHEEL_DELTA) PostMessageA(game_frame_window(), WM_COMMAND, 0x20, 0);
+            for (; acc <= -WHEEL_DELTA; acc += WHEEL_DELTA) PostMessageA(game_frame_window(), WM_COMMAND, 0x21, 0);
+            return;
+        }
+        PostMessageA(h, WM_MOUSEWHEEL, e->w, MAKELPARAM(scr.x, scr.y));   /* wheel is in screen space */
         return;
     }
     int down = e->msg == WM_LBUTTONDOWN || e->msg == WM_RBUTTONDOWN;
+    if (g_thumb.h) {
+        if (e->msg == WM_MOUSEMOVE) thumb_drag(scr);
+        if (e->msg == WM_LBUTTONUP) g_thumb.h = NULL;
+        return;
+    }
     h = (capture && IsWindow(capture) && !down) ? capture : window_at(scr);
     if (!h) return;
+    if (e->msg == WM_LBUTTONDOWN) {
+        DWORD_PTR ht = HTCLIENT;
+        SendMessageTimeoutA(h, WM_NCHITTEST, 0, MAKELPARAM(scr.x, scr.y), SMTO_ABORTIFHUNG, 200, &ht);
+        if (ht == HTVSCROLL || ht == HTHSCROLL) { scroll_click(h, ht == HTVSCROLL ? SB_VERT : SB_HORZ, scr); return; }
+        if (ht == HTCLOSE) { PostMessageA(GetAncestor(h, GA_ROOT), WM_SYSCOMMAND, SC_CLOSE, 0); return; }
+        focus(h);
+    }
     if (down) capture = h;
     if (e->msg == WM_LBUTTONDOWN) g_ldown = 1;
     if (e->msg == WM_LBUTTONUP) g_ldown = 0;
@@ -354,6 +440,8 @@ void input_live_start(void) {
 }
 
 void input_live_mouse(UINT msg, WPARAM keys, int x, int y) { live_ev_t e = { EV_MOUSE, msg, keys, 0, x, y }; live_push(e); }
+/* zoom: the wheel zooms the city (the frontend's setting); in a dialog it always scrolls */
+void input_live_wheel(WPARAM w, int x, int y, int zoom)    { live_ev_t e = { EV_MOUSE, WM_MOUSEWHEEL, w, zoom, x, y }; live_push(e); }
 void input_live_key(UINT msg, WPARAM w, LPARAM l)          { live_ev_t e = { EV_KEY, msg, w, l, 0, 0 }; live_push(e); }
 void input_live_command(UINT id)                           { live_ev_t e = { EV_COMMAND, 0, id, 0, 0, 0 }; live_push(e); }
 void input_live_initmenu(HMENU sub, int index)             { live_ev_t e = { EV_INITMENU, 0, (WPARAM)sub, index, 0, 0 }; live_push(e); }

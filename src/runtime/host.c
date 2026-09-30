@@ -187,7 +187,18 @@ recomp_func_t recomp_lookup(uint32_t va) {
     return NULL;
 }
 
-recomp_func_t recomp_lookup_manual(uint32_t va) { (void)va; return NULL; }
+/* The game's new-day routine, reached only through the jmp thunk 0x00401820,
+ * so replacing it here catches every call. At African Swallow (the speed
+ * word 0x004C7318 == 5) a day runs only when qol.c's quota allows; a skipped
+ * one just returns (it is a plain ret). */
+void sub_00413520(void);
+int qol_swallow_day(void);                                  /* qol.c */
+static void paced_new_day(void) {
+    if (*(volatile int16_t *)0x004C7318 == 5 && !qol_swallow_day()) { g_esp += 4; return; }
+    sub_00413520();
+}
+
+recomp_func_t recomp_lookup_manual(uint32_t va) { return va == 0x00413520u ? paced_new_day : NULL; }
 
 recomp_func_t recomp_lookup_import(uint32_t va) {
     if (va >= GUEST_BASE && va < g_image_hi) return NULL;   /* a guest VA nobody lifted */
