@@ -39,7 +39,7 @@ the game's own code, recompiled.
 
 | Area | State |
 |---|---|
-| Lift | 7,045 functions, 0 lift errors, ~522K lines of C |
+| Lift | 9,870 functions from pcrecomp's own catalog (7,045 from IDA's), 0 lift errors |
 | Startup, MFC, dialogs, menus, toolbar | Working |
 | Terrain generation, map rendering | Working |
 | Building: power plants, power lines, zones, roads | Working |
@@ -51,13 +51,43 @@ the game's own code, recompiled.
 | Sound and music | Working in play (not checked by the headless runs) |
 | Frontend window: filters, glow, CRT, menu bar, cheats, speed slider | Working (the default; `--classic` for the game's own windows) |
 | Save slots, mods (built-in and DLL) | Working |
-| Speed | Measured a month behind the original over five minutes, on a machine that was saturated by other builds at the time — to be re-measured |
+| Speed | The game's own speeds, plus a slider; African Swallow is paced (below) |
 
-Needs two pcrecomp fixes that are in review: pcrecomp#6 (`lift32` narrow
-`mul`/`div`: without it the simulation faults when the first newspaper closes)
-and pcrecomp#8 (a `rep` compare with ECX = 0: without it the simulation hangs
-in `strstr`). Build against a pcrecomp checkout that has both, via `PCRECOMP`
-(below).
+Needs pcrecomp#23 (the function catalog without IDA) until it merges; build
+against its branch via `PCRECOMP` (below).
+
+## What's added on top
+
+The game runs as it shipped. Everything here is optional and sits around it:
+the host draws the game's frame in its own window and adds a menu bar next to
+the game's own menus. `--classic` turns all of it off and shows the game's
+original windows.
+
+![The frontend: the Graphics menu open over NYC at dusk, with glow and CRT](docs/screenshots/frontend.png)
+
+| Menu | What it does |
+|---|---|
+| **Graphics** | Filters: nearest (original pixels), smooth, sharp bilinear, Scale2x. Integer scaling. Glow on bright, saturated pixels (lights, fire), with strength and threshold. A CRT look: curvature, scanlines, shadow mask, vignette. |
+| **Effects** | Day and night, seasons and weather, drawn by recolouring the game's own 256-colour palette, the way 1996 hardware would have. Driven by the game's calendar and its weather. Adjustable cycle length and night depth. See [docs/effects.md](docs/effects.md). |
+| **Play** | A speed slider, 5% to 800% on top of the game's own speed setting. African Swallow is paced at twice Cheetah: the original runs it flat out, and on a modern PC a new city's whole first year went by in a fifth of a second. Also: mouse wheel zooms, and autosave every 5, 10 or 30 minutes. |
+| **Saves** | Numbered save slots, save and load in one click. The game's File dialog is answered for you. |
+| **Mods** | Built-in mods (Always sunny) and mod DLLs from `mods\`, with a small C API. `mods/stipend` is the worked example. See [docs/mods.md](docs/mods.md). |
+| **Cheats** | Add $10,000, $100,000 or $1,000,000, or hold funds where they are. |
+| **Debug** | A city stats window (date, weather, funds, time of day) and frame timings. |
+| **Display** | Fullscreen (F11), vsync. |
+
+Settings are remembered in `build\sc2k.ini`. Dialogs work in the frontend
+window: scroll bars, the mouse wheel and the arrow keys included. More in
+[docs/frontend.md](docs/frontend.md).
+
+For development and testing:
+
+- `--headless` runs the game where nothing reaches your screens (works over
+  RDP), and `--record` films it to MP4.
+- `--input` plays scripted mouse and keyboard input.
+- `--native` runs the original `SIMCITY.EXE` under the same recorder and
+  script, as the reference to compare against.
+- Tracing via environment variables (Usage, below).
 
 ## Getting Started
 
@@ -124,10 +154,8 @@ build\sc2k.exe [--headless] [--record out.mp4] [--fps N] [--seconds N]
 - `--seconds N` exits after N seconds.
 - Anything after the game's path goes to the game; a city file opens that
   city: `build\sc2k.exe game\SIMCITY.EXE CITIES\NYC.SC2`.
-- The game plays in the host's own window by default (the frontend): shader
-  filters, glow, CRT, and a menu bar with the game's menus plus Graphics,
-  Effects, Play (speed slider, wheel zoom, autosave), Display, Debug and Cheats
-  (docs/frontend.md). `--classic` shows the game's own windows instead.
+- The game plays in the host's own window by default, with the menus in
+  *What's added on top*. `--classic` shows the game's own windows instead.
 - Mods: built-in and DLL mods with a small C API (docs/mods.md);
   `SC2K_MODS="Always sunny,City stipend"` switches them on without the menu.
 - `--native` runs the **original** `SIMCITY.EXE` instead, on the same desktop
