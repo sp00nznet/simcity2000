@@ -464,6 +464,7 @@ static void usage(void) {
 int fx_selftest(void);                                     /* fx.c */
 void fx_init(void);
 void qol_set_turbo(int factor);                             /* qol.c */
+void mods_start(void);                                      /* mods.c */
 void frontend_enable(void);                                 /* frontend.cpp */
 void frontend_start(const char *ini);
 
@@ -566,6 +567,7 @@ int main(int argc, char **argv) {
      * reserves it before main runs, low in the address space -- a 16 MB one
      * sat exactly on 0x00400000 and the game image had nowhere to go. */
     InitializeCriticalSection(&g_gil);
+    mods_start();
     if (frontend) {
         /* settings beside sc2k.exe, so each build keeps its own */
         char ini[MAX_PATH];

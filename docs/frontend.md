@@ -65,6 +65,7 @@ at the game's "save your city?" question cannot capture a later dialog.
 | Play | Turbo on top of the game's speed (2x, 4x, 8x); mouse wheel zoom; autosave every 5, 10 or 30 minutes |
 | Display | Fullscreen (F11), vsync |
 | Debug | City stats window; capture time and frame rate |
+| Mods | Built-in mods and mod DLLs, switched on and off (docs/mods.md) |
 | Cheats | Add funds; hold funds where they are |
 
 Settings are saved to `sc2k.ini` beside `sc2k.exe`.

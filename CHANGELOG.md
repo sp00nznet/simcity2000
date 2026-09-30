@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Mods: a Mods menu, built-in mods (Always sunny), and mod DLLs from `mods\`
+  with a C API (`sc2k_mod.h`); `mods/stipend` is a worked example.
+
 ### Fixed
 
 - The map's colours after loading a city: a deleted bitmap's handle came back

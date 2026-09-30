@@ -39,6 +39,7 @@ add_executable(sc2k
   src/runtime/fx.c
   src/runtime/frame.c
   src/runtime/qol.c
+  src/runtime/mods.c
   src/frontend/frontend.cpp
   ${IMGUI_SOURCES}
   src/runtime/input.c
@@ -64,3 +65,8 @@ target_compile_options(sc2k PRIVATE /Z7)
 # --nxcompat so DEP is on and a jump into guest .text traps (the callback path).
 target_link_options(sc2k PRIVATE /BASE:0x60000000 /DYNAMICBASE:NO /NXCOMPAT /DEBUG)
 target_link_libraries(sc2k PRIVATE user32 gdi32 comdlg32 advapi32 d3d11 dxgi d3dcompiler dwmapi winmm)
+
+# The sample mod (mods/stipend): a DLL in build/mods, loaded at startup.
+add_library(stipend SHARED mods/stipend/stipend.c)
+target_include_directories(stipend PRIVATE src/runtime)
+set_target_properties(stipend PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/mods)

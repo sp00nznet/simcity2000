@@ -19,6 +19,11 @@
 
 ## Later
 
+- **Function-replacing mods.** Let the lift emit hookable entry points for chosen
+  game functions, so a mod DLL can replace one (free building: the spending
+  routine).
+- **The built-in cheat codes** (`0x0040CA30`): find what context they are typed in.
+
 - An IDA-free function catalog (pcrecomp `disasm32.py`), so building does not
   need a commercial disassembler. Score it against the IDA catalog first.
 - The intro movie: point the CD check at a folder instead of a drive.

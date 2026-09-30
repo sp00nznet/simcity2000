@@ -50,6 +50,7 @@ the game's own code, recompiled.
 | Intro movie | Skipped — the game looks for the CD, and says so |
 | Sound and music | Working in play (not checked by the headless runs) |
 | Frontend window: filters, glow, CRT, menu bar, cheats, turbo | Working (the default; `--classic` for the game's own windows) |
+| Save slots, mods (built-in and DLL) | Working |
 | Speed | Measured a month behind the original over five minutes, on a machine that was saturated by other builds at the time — to be re-measured |
 
 Needs two pcrecomp fixes that are in review: pcrecomp#6 (`lift32` narrow
@@ -129,6 +130,8 @@ build\sc2k.exe [--headless] [--record out.mp4] [--fps N] [--seconds N]
   filters, glow, CRT, and a menu bar with the game's menus plus Graphics,
   Effects, Play (turbo, wheel zoom, autosave), Display, Debug and Cheats
   (docs/frontend.md). `--classic` shows the game's own windows instead.
+- Mods: built-in and DLL mods with a small C API (docs/mods.md);
+  `SC2K_MODS="Always sunny,City stipend"` switches them on without the menu.
 - `--native` runs the **original** `SIMCITY.EXE` instead, on the same desktop
   with the same recorder and script: the reference to compare against.
 - `--input SCRIPT` plays scripted input, `T:verb args` separated by `;`, with T

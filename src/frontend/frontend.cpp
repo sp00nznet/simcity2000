@@ -50,6 +50,11 @@ void     guest_unlock(void);
 void     frame_start(void);
 void     qol_set_turbo(int factor);
 int      qol_turbo(void);
+int      mods_count(void);
+const char *mods_name(int i);
+const char *mods_description(int i);
+int      mods_on(int i);
+void     mods_set(int i, int on);
 }
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
@@ -675,6 +680,20 @@ static void host_menus() {
         ImGui::Text("Presentation: %.0f fps", ImGui::GetIO().Framerate);
         ImGui::EndMenu();
     }
+    if (ImGui::BeginMenu("Mods")) {
+        if (!mods_count()) ImGui::TextDisabled("No mods loaded");
+        for (int i = 0; i < mods_count(); i++) {
+            bool on = mods_on(i);
+            if (ImGui::MenuItem(mods_name(i), nullptr, &on)) {
+                mods_set(i, on);
+                WritePrivateProfileStringA("mods", mods_name(i), on ? "1" : "0", g_ini);
+            }
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", mods_description(i));
+        }
+        ImGui::Separator();
+        ImGui::TextDisabled("Add mods: DLLs in the mods folder beside sc2k.exe (docs/mods.md)");
+        ImGui::EndMenu();
+    }
     if (ImGui::BeginMenu("Cheats")) {
         if (ImGui::MenuItem("+ $10,000")) set_funds(GAME_FUNDS + 10000);
         if (ImGui::MenuItem("+ $100,000")) set_funds(GAME_FUNDS + 100000);
@@ -915,6 +934,8 @@ extern "C" void frontend_start(const char *ini_path) {
     snprintf(g_ini, sizeof g_ini, "%s", ini_path);
     load_settings();
     qol_set_turbo(S.turbo);
+    for (int i = 0; i < mods_count(); i++)
+        if (GetPrivateProfileIntA("mods", mods_name(i), 0, g_ini)) mods_set(i, 1);
     g_popup.done = CreateEventA(nullptr, FALSE, FALSE, nullptr);
     frame_start();
     input_live_start();
