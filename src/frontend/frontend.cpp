@@ -48,8 +48,7 @@ void     input_live_initmenu(HMENU sub, int index);
 void     guest_lock(void);
 void     guest_unlock(void);
 void     frame_start(void);
-void     qol_set_turbo(int factor);
-int      qol_turbo(void);
+void     qol_set_speed(int pct);
 int      mods_count(void);
 const char *mods_name(int i);
 const char *mods_description(int i);
@@ -79,7 +78,7 @@ struct Settings {
     bool  fullscreen = false;
     bool  stats = false;
     bool  wheel_zoom = true;
-    int   turbo = 1;
+    int   speed = 100;              /* percent of normal */
     int   autosave_min = 0;         /* 0 = off */
     bool  hold_funds = false;
     int   held_funds = 0;
@@ -106,7 +105,7 @@ static void load_settings() {
     S.glow_threshold = getf("glow_threshold", S.glow_threshold);
     S.vsync = geti("vsync", S.vsync);
     S.wheel_zoom = geti("wheel_zoom", S.wheel_zoom);
-    S.turbo = geti("turbo", S.turbo);
+    S.speed = geti("speed", S.speed);
     S.autosave_min = geti("autosave_minutes", S.autosave_min);
     g_fx.daynight = geti("daynight", g_fx.daynight);
     g_fx.seasons = geti("seasons", g_fx.seasons);
@@ -122,7 +121,7 @@ static void save_settings() {
     putf("crt_curve", S.curve); putf("crt_scanlines", S.scan); putf("crt_mask", S.mask); putf("crt_vignette", S.vignette);
     puti("glow", S.glow); putf("glow_strength", S.glow_k); putf("glow_threshold", S.glow_threshold);
     puti("vsync", S.vsync);
-    puti("wheel_zoom", S.wheel_zoom); puti("turbo", S.turbo); puti("autosave_minutes", S.autosave_min);
+    puti("wheel_zoom", S.wheel_zoom); puti("speed", S.speed); puti("autosave_minutes", S.autosave_min);
     puti("daynight", g_fx.daynight); puti("seasons", g_fx.seasons); puti("weather", g_fx.weather);
     puti("cycle_days", g_fx.cycle_days); putf("night_depth", g_fx.night_depth);
 }
@@ -650,12 +649,15 @@ static void host_menus() {
     }
     saves_menu();
     if (ImGui::BeginMenu("Play")) {
-        ImGui::TextDisabled("Turbo (on top of the game's speed)");
-        const int speeds[] = { 1, 2, 4, 8 };
-        for (int k : speeds) {
+        ImGui::TextDisabled("Speed (on top of the game's own)");
+        if (ImGui::SliderInt("##speed", &S.speed, 5, 800, "%d%%", ImGuiSliderFlags_Logarithmic)) {
+            qol_set_speed(S.speed); changed = true;
+        }
+        const int presets[] = { 10, 25, 50, 100, 200, 400 };
+        for (int p : presets) {
             char lab[16];
-            snprintf(lab, sizeof lab, k == 1 ? "Normal" : "%dx", k);
-            if (ImGui::MenuItem(lab, nullptr, S.turbo == k)) { S.turbo = k; qol_set_turbo(k); changed = true; }
+            snprintf(lab, sizeof lab, p == 100 ? "Normal" : "%d%%", p);
+            if (ImGui::MenuItem(lab, nullptr, S.speed == p)) { S.speed = p; qol_set_speed(p); changed = true; }
         }
         ImGui::Separator();
         changed |= ImGui::MenuItem("Mouse wheel zooms", nullptr, &S.wheel_zoom);
@@ -933,7 +935,7 @@ static DWORD WINAPI ui_script_thread(LPVOID arg) {
 extern "C" void frontend_start(const char *ini_path) {
     snprintf(g_ini, sizeof g_ini, "%s", ini_path);
     load_settings();
-    qol_set_turbo(S.turbo);
+    qol_set_speed(S.speed);
     for (int i = 0; i < mods_count(); i++)
         if (GetPrivateProfileIntA("mods", mods_name(i), 0, g_ini)) mods_set(i, 1);
     g_popup.done = CreateEventA(nullptr, FALSE, FALSE, nullptr);

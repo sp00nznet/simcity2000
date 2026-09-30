@@ -463,7 +463,7 @@ static void usage(void) {
 
 int fx_selftest(void);                                     /* fx.c */
 void fx_init(void);
-void qol_set_turbo(int factor);                             /* qol.c */
+void qol_set_speed(int pct);                                /* qol.c */
 void mods_start(void);                                      /* mods.c */
 void frontend_enable(void);                                 /* frontend.cpp */
 void frontend_start(const char *ini);
@@ -552,7 +552,7 @@ int main(int argc, char **argv) {
     fx_init();
     {
         char tv[8];
-        if (GetEnvironmentVariableA("SC2K_TURBO", tv, sizeof tv)) qol_set_turbo(atoi(tv));
+        if (GetEnvironmentVariableA("SC2K_TURBO", tv, sizeof tv)) qol_set_speed((int)(atof(tv) * 100));   /* a multiplier, 0.25 or 4 */
     }
     if (frontend) frontend_enable();
     if (headless && !headless_init()) return 2;

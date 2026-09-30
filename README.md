@@ -49,7 +49,7 @@ the game's own code, recompiled.
 | Palette animation (traffic, lights) | Working: the host emulates a 256-colour palette display |
 | Intro movie | Skipped — the game looks for the CD, and says so |
 | Sound and music | Working in play (not checked by the headless runs) |
-| Frontend window: filters, glow, CRT, menu bar, cheats, turbo | Working (the default; `--classic` for the game's own windows) |
+| Frontend window: filters, glow, CRT, menu bar, cheats, speed slider | Working (the default; `--classic` for the game's own windows) |
 | Save slots, mods (built-in and DLL) | Working |
 | Speed | Measured a month behind the original over five minutes, on a machine that was saturated by other builds at the time — to be re-measured |
 
@@ -128,7 +128,7 @@ build\sc2k.exe [--headless] [--record out.mp4] [--fps N] [--seconds N]
   city: `build\sc2k.exe game\SIMCITY.EXE CITIES\NYC.SC2`.
 - The game plays in the host's own window by default (the frontend): shader
   filters, glow, CRT, and a menu bar with the game's menus plus Graphics,
-  Effects, Play (turbo, wheel zoom, autosave), Display, Debug and Cheats
+  Effects, Play (speed slider, wheel zoom, autosave), Display, Debug and Cheats
   (docs/frontend.md). `--classic` shows the game's own windows instead.
 - Mods: built-in and DLL mods with a small C API (docs/mods.md);
   `SC2K_MODS="Always sunny,City stipend"` switches them on without the menu.

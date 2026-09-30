@@ -1,11 +1,12 @@
 /*
  * qol.c - quality-of-life changes that need to sit between the game and
- * Windows: turbo speed.
+ * Windows: game speed.
  *
  * The game drives its simulation from one multimedia timer, a 200 ms
- * timeSetEvent whose callback (0x00402A72) advances the clock. Turbo shortens
- * that period by a factor, so African Swallow can go faster still. Changing
- * the factor re-arms the timer; the game keeps the ID it was first given,
+ * timeSetEvent whose callback (0x00402A72) advances the clock -- a game day
+ * per tick, so a year a minute on any modern PC. The speed scales that
+ * period, slower or faster than the game's own speeds. Changing it re-arms
+ * the timer; the game keeps the ID it was first given,
  * because it kills the timer by that ID later.
  */
 #define WIN32_LEAN_AND_MEAN
@@ -23,7 +24,7 @@ typedef struct {
 
 static game_timer_t g_timers[8];
 static int g_ntimers;
-static int g_turbo = 1;
+static int g_pct = 100;      /* speed, percent of normal */
 static CRITICAL_SECTION g_lock;
 static LONG g_init;
 
@@ -33,8 +34,8 @@ static void init(void) {
 }
 
 static UINT arm(game_timer_t *t) {
-    UINT d = t->delay / (UINT)g_turbo;
-    return timeSetEvent(d ? d : 1, t->res / (UINT)g_turbo, t->cb, t->user, t->flags);
+    UINT d = t->delay * 100 / (UINT)g_pct;
+    return timeSetEvent(d ? d : 1, t->res * 100 / (UINT)g_pct, t->cb, t->user, t->flags);
 }
 
 static MMRESULT WINAPI o_timeSetEvent(UINT delay, UINT res, LPTIMECALLBACK cb, DWORD_PTR user, UINT flags) {
@@ -70,13 +71,14 @@ static MMRESULT WINAPI o_timeKillEvent(UINT id) {
     return timeKillEvent(id);
 }
 
-/* 1 = normal; 2, 4, 8 = that many times faster. */
-void qol_set_turbo(int factor) {
+/* percent of normal: 25 = a quarter speed, 400 = four times faster */
+void qol_set_speed(int pct) {
     init();
-    if (factor < 1) factor = 1;
+    if (pct < 5) pct = 5;
+    if (pct > 1000) pct = 1000;
     EnterCriticalSection(&g_lock);
-    if (factor != g_turbo) {
-        g_turbo = factor;
+    if (pct != g_pct) {
+        g_pct = pct;
         for (int i = 0; i < g_ntimers; i++) {
             timeKillEvent(g_timers[i].real);
             g_timers[i].real = arm(&g_timers[i]);
@@ -85,7 +87,6 @@ void qol_set_turbo(int factor) {
     LeaveCriticalSection(&g_lock);
 }
 
-int qol_turbo(void) { return g_turbo; }
 
 void *qol_override(const char *name) {
     if (!strcmp(name, "timeSetEvent")) return (void *)o_timeSetEvent;

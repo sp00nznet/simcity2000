@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Play menu: the turbo choices are now a speed slider from 5% to 800%. The game
+  moves a day per 200 ms tick, a year a minute, which left no time to build.
+  `SC2K_TURBO` takes a multiplier, now fractions too (`0.25`).
+
 ### Added
 
 - Mods: a Mods menu, built-in mods (Always sunny), and mod DLLs from `mods\`

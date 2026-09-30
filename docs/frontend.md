@@ -7,9 +7,10 @@ covers the game (after Tachyon's developer bar).
 
 ![The frontend: the Graphics menu open over NYC at dusk, with glow and CRT](screenshots/frontend.png)
 
-**Turbo** (`qol.c`): the game paces its simulation with one 200 ms
-`timeSetEvent`; turbo shortens the period. Measured on NYC: 40 game days in 8 s
-at normal speed, 161 at 4x. The mouse wheel sends the toolbar's own zoom
+**Speed** (`qol.c`): the game paces its simulation with one 200 ms
+`timeSetEvent`, a game day per tick, so a year passes in a minute. The speed
+slider scales that period, from 5% (a year in 20 minutes) to 800%. Measured on
+NYC: 40 game days in 8 s at normal speed, 161 at 400%. The mouse wheel sends the toolbar's own zoom
 commands (`0x20` in, `0x21` out). Autosave sends File > Save City (`0x8025`)
 only for a city that already has a file, so it never opens a dialog.
 
@@ -62,7 +63,7 @@ at the game's "save your city?" question cannot capture a later dialog.
 | Graphics | Filter: nearest, smooth, sharp bilinear, Scale2x; integer scaling; glow; CRT (curvature, scanlines, shadow mask, vignette) |
 | Effects | Day and night, seasons, weather (docs/effects.md); days per cycle; night depth |
 | Saves | Five quick-save slots, each showing its city and time; save and load in one click |
-| Play | Turbo on top of the game's speed (2x, 4x, 8x); mouse wheel zoom; autosave every 5, 10 or 30 minutes |
+| Play | Speed slider, 5% to 800% of the game's own pace; mouse wheel zoom; autosave every 5, 10 or 30 minutes |
 | Display | Fullscreen (F11), vsync |
 | Debug | City stats window; capture time and frame rate |
 | Mods | Built-in mods and mod DLLs, switched on and off (docs/mods.md) |
