@@ -10,8 +10,6 @@
 - **The scenarios** (`Load Scenario`) and the disasters menu.
 - **Sound and music**: `sndPlaySound` and MIDI through MCI, both pass through
   today and have not been checked.
-- **`Setup.cmd` quick start** (REPO_RULES section 5): check prerequisites, find
-  the disc or ISO, run the steps below, leave a shortcut.
 - **Conformance harness** (REPO_RULES section 9): a fixed set of scripted
   headless runs with a pass count: "reaches the menu", "builds and saves a
   city", "NYC after five minutes has the original's funds". `--native` gives

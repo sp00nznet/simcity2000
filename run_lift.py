@@ -28,7 +28,7 @@ Function entries come from three sources, unioned:
 Output goes to src/recomp/gen/, which is gitignored: it is derived from the
 game binary and never distributed (see README).
 
-    py -3 run_lift.py [--exe original/SIMCITY.EXE] [--catalog FILE] [--out src/recomp/gen]
+    py -3 run_lift.py [--exe game/SIMCITY.EXE] [--catalog FILE] [--out src/recomp/gen]
 """
 import argparse
 import bisect
@@ -100,7 +100,7 @@ def head_disassemble_function(md, code, cs, start, end, heads):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--exe', default=os.path.join(_HERE, 'original', 'SIMCITY.EXE'))
+    ap.add_argument('--exe', default=os.path.join(_HERE, 'game', 'SIMCITY.EXE'))
     ap.add_argument('--catalog', default=os.path.join(_HERE, 'analysis', 'd32_funcs.json'))
     ap.add_argument('--codemap', default=os.path.join(_HERE, 'analysis', 'ida_codemap.json'))
     ap.add_argument('--out', default=os.path.join(_HERE, 'src', 'recomp', 'gen'))

@@ -43,6 +43,7 @@ double   g_st[8];
 int      g_fp_top;
 uint16_t g_fpu_cw = 0x027F;
 uint64_t g_mm[8];
+xmm_t    g_xmm[8];   /* SSE registers, for lifters that lift movups and friends */
 uint16_t g_seg_cs, g_seg_ds, g_seg_es, g_seg_fs, g_seg_gs, g_seg_ss;
 ptrdiff_t g_mem_base = 0;
 uint32_t g_fs_base, g_gs_base;
@@ -59,6 +60,7 @@ typedef struct {
     int      top;
     uint16_t cw;
     uint64_t mm[8];
+    xmm_t    xmm[8];
 } regs_t;
 
 static void regs_save(regs_t *r) {
@@ -68,6 +70,7 @@ static void regs_save(regs_t *r) {
     r->fs = g_fs_base; r->cur = g_cur_func;
     memcpy(r->st, g_st, sizeof g_st); r->top = g_fp_top; r->cw = g_fpu_cw;
     memcpy(r->mm, g_mm, sizeof g_mm);
+    memcpy(r->xmm, g_xmm, sizeof g_xmm);
 }
 
 static void regs_load(const regs_t *r) {
@@ -77,6 +80,7 @@ static void regs_load(const regs_t *r) {
     g_fs_base = r->fs; g_cur_func = r->cur;
     memcpy(g_st, r->st, sizeof g_st); g_fp_top = r->top; g_fpu_cw = r->cw;
     memcpy(g_mm, r->mm, sizeof g_mm);
+    memcpy(g_xmm, r->xmm, sizeof g_xmm);
 }
 
 /* ---- guest lock and per-thread guest state ---- */
@@ -290,8 +294,9 @@ static void crash_report(EXCEPTION_POINTERS *ep) {
 
 static LONG WINAPI veh(EXCEPTION_POINTERS *ep) {
     EXCEPTION_RECORD *er = ep->ExceptionRecord;
-    if (er->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && er->NumberParameters >= 2 &&
-        er->ExceptionInformation[0] == 8) {
+    /* A fetch: Windows reports it as 8 (execute); some Wines as a read. A
+     * fault at the instruction's own address is a fetch either way. */
+    if (er->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && er->NumberParameters >= 2) {
         uint32_t a = (uint32_t)er->ExceptionInformation[1];
         if (a >= g_text_lo && a < g_text_hi && ep->ContextRecord->Eip == a) {
             ep->ContextRecord->Eax = a;

@@ -27,3 +27,9 @@ Thumbs.db
 .DS_Store
 __pycache__/
 sc2k.ini
+
+# --- Left by Setup.cmd / setup.sh ---
+* (recomp).cmd
+* (recomp).sh
+setup.log
+.venv/

@@ -95,6 +95,28 @@ You need the **Windows 95** version of SimCity 2000: the *CD Collection* or
 *Special Edition* disc, which has a `WIN95\SC2K` folder with `SIMCITY.EXE` in it.
 (The DOS and Windows 3.1 versions are different programs and are not supported.)
 
+### Quick start
+
+- **The installer**: download it from the
+  [releases](https://github.com/sp00nznet/simcity2000/releases) (Windows or
+  Linux), choose your disc, its `.iso`, or a folder with the Win95
+  `SIMCITY.EXE`, and press Build. It is
+  [recomp-launcher](https://github.com/sp00nznet/recomp-launcher) with
+  `launcher/launcher.json`, and it runs the scripts below.
+- **Windows**: double-click `Setup.cmd`. It installs what is missing (Python,
+  LLVM, the Visual Studio Build Tools), copies the game into `game\`, lifts and
+  builds, and leaves `SimCity 2000 (recomp).cmd` to play.
+- **Linux**: `./setup.sh`. The same steps, but the Windows `sc2k.exe` is
+  cross-compiled with clang-cl (`build.sh`, against the MSVC runtime and SDK
+  that [xwin](https://github.com/Jake-Shadle/xwin) downloads) and played under
+  Wine with `SimCity 2000 (recomp).sh`. It needs clang, lld, llvm, cmake,
+  ninja and wine (32-bit) from your package manager, and says which are
+  missing. Under Wine the game plays in its own windows (`--classic`): the
+  frontend's extras (filters, effects, the speed slider, save slots, mods)
+  are Windows-only for now. There is no native Linux host yet.
+
+A rerun skips the steps that are done; `-Force` / `--force` redoes them.
+
 ### Step by step
 
 Prerequisites, all on Windows 10 or 11:
@@ -138,7 +160,6 @@ Usual trip-ups: `py` vs `python` (use the `py` launcher; the Microsoft Store
 `python` alias is not a real interpreter), and a `PATH` change that needs a new
 terminal. `tools\build.cmd` sets up the Visual Studio environment itself.
 
-A one-click `Setup.cmd` quick start is on the [roadmap](ROADMAP.md).
 
 ## Usage
 

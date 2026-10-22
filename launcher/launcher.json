@@ -1,0 +1,19 @@
+{
+  "title": "SimCity 2000",
+  "repo": "sp00nznet/simcity2000",
+  "accent": "#2e8b57",
+  "note": {
+    "windows": "The first build takes 15 to 30 minutes and about 3 GB. Python, LLVM and the Visual Studio Build Tools with CMake (about 3 GB) are installed if they are missing; Windows asks for permission. Choose the Windows 95 SimCity 2000 disc (CD Collection or Special Edition), its .iso, or a folder with its SIMCITY.EXE.",
+    "default": "The first build takes 15 to 30 minutes and about 3 GB, and plays under Wine. It needs clang, lld, llvm, cmake, ninja and wine from your package manager (it says which are missing, with the command), and downloads Microsoft's C runtime and Windows SDK with xwin: building accepts Microsoft's licence for them (https://go.microsoft.com/fwlink/?LinkId=2086102). Choose the Windows 95 SimCity 2000 disc, its .iso, or a folder with its SIMCITY.EXE."
+  },
+  "game": {
+    "name": "SimCity 2000",
+    "files": ["SIMCITY.EXE|simcity.exe|WIN95/SC2K/SIMCITY.EXE|win95/sc2k/simcity.exe|*.iso"]
+  },
+  "sources": [{ "repo": "sp00nznet/pcrecomp", "ref": "main", "dir": "pcrecomp" }],
+  "setup": {
+    "windows": ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "tools\\setup.ps1", "-Yes", "-Game", "{game}"],
+    "default": ["bash", "setup.sh", "--yes", "--game-dir", "{game}"]
+  },
+  "play": "* (recomp).*"
+}

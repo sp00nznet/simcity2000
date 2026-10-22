@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- One-click setup: `Setup.cmd` on Windows, `./setup.sh` on Linux (the
+  Windows exe cross-compiled with clang-cl and xwin, played under Wine). Each
+  installs or names what is missing, copies the game from its disc, `.iso` or
+  folder, makes the catalog, lifts, builds, and leaves a launcher.
+- An installer for Windows and Linux (recomp-launcher, `launcher/launcher.json`),
+  built by `.github/workflows/installer.yml`.
+
 ### Changed
 
 - The build needs no commercial tools: `run_lift.py` takes its function
@@ -17,6 +26,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The build links against pcrecomp main again: its lifter lifts SSE
+  instructions now, and the host defines the `g_xmm` registers they use.
+- Under Wine, a callback fault reported as a read is taken as the fetch it is.
 - African Swallow ran the simulation flat out, a day per idle pass, so on a
   modern PC a new city's first year took a fifth of a second and the budget
   and newspaper came back to back (the original exe does it too). It now runs
