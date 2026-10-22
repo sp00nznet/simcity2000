@@ -16,7 +16,7 @@ the lifter runs on your machine and writes the C into a gitignored folder.
 
 ## Status
 
-**v0.3.0 — alpha. It plays: build a city, save it, load it, watch it animate.**
+**v0.4.0 — alpha. It plays: build a city, save it, load it, watch it animate. Windows, and Linux under Wine.**
 
 The recompiled program generates maps, takes building tools (power plants,
 zones, roads), saves and loads cities through the game's own File dialogs,

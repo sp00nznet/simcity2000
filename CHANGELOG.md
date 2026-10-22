@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-22
+
 ### Added
 
 - One-click setup: `Setup.cmd` on Windows, `./setup.sh` on Linux (the
@@ -14,15 +16,33 @@ All notable changes to this project are documented here. The format follows
   folder, makes the catalog, lifts, builds, and leaves a launcher.
 - An installer for Windows and Linux (recomp-launcher, `launcher/launcher.json`),
   built by `.github/workflows/installer.yml`.
+- The frontend, now the default (`--classic` shows the game's own windows):
+  the game in the host's own Direct3D 11 window, with upscaling filters
+  (nearest, smooth, sharp bilinear, Scale2x), glow, CRT, fullscreen, and a
+  Dear ImGui menu bar: the game's menus mirrored with live check marks, plus
+  Graphics, Effects, Play, Saves, Mods, Display, Debug (city stats) and Cheats
+  (funds). Toolbar pop-ups appear as ImGui pop-ups. Settings persist in
+  `sc2k.ini`. `NOTICE` and `LICENSES/imgui.txt` for the vendored Dear ImGui (MIT).
+- Day and night, seasons and weather, recoloured per palette entry from the
+  game's own clock and weather, so lights stay lit at night (`fx.c`,
+  docs/effects.md). `sc2k --selftest` for the effect math; `SC2K_WATCH` also
+  shows day, month, weather and funds.
+- Play menu: mouse-wheel zoom, autosave for named cities, and a speed slider
+  from 5% to 800% (`SC2K_TURBO` takes a multiplier, fractions too).
+- Saves menu: five quick-save slots with city name and time, through the
+  game's own Save As / Load City, the dialog answered unseen.
+- Mods: a Mods menu, built-in mods (Always sunny), and mod DLLs from `mods\`
+  with a C API (`sc2k_mod.h`); `mods/stipend` is a worked example.
+- A hero GIF for the README: NYC, recompiled, with a plane over the harbour.
 
 ### Changed
 
 - The build needs no commercial tools: `run_lift.py` takes its function
   catalog from pcrecomp's `disasm32` (pcrecomp#23), and writes it on the first
   run. IDA stays available with `--catalog analysis/ida_funcs.json`.
-  Against IDA: precision 87.4%, recall 88.2%; the lift is 9,870 functions.
-- `run_lift.py` drops recovered entries inside a known instruction, and clears
-  stale chunk files before writing.
+  Against IDA: precision 87.4%, recall 88.2%.
+- `run_lift.py` reads `game/SIMCITY.EXE` by default, drops recovered entries
+  inside a known instruction, and clears stale chunk files before writing.
 
 ### Fixed
 
@@ -33,51 +53,13 @@ All notable changes to this project are documented here. The format follows
   modern PC a new city's first year took a fifth of a second and the budget
   and newspaper came back to back (the original exe does it too). It now runs
   two days per timer tick, twice Cheetah, and follows the speed slider.
-- Frontend: the File dialog's list scrolls -- scroll bar (arrows, page, thumb),
-  mouse wheel, and arrow keys after clicking a file. Clicks move the game's
-  keyboard focus, the wheel zooms only over the city, and dialogs' close
-  buttons work.
-- Frontend: the picture sits right under the menu bar instead of centred.
-
-### Changed
-
-- Play menu: the turbo choices are now a speed slider from 5% to 800%. The game
-  moves a day per 200 ms tick, a year a minute, which left no time to build.
-  `SC2K_TURBO` takes a multiplier, now fractions too (`0.25`).
-
-### Added
-
-- Mods: a Mods menu, built-in mods (Always sunny), and mod DLLs from `mods\`
-  with a C API (`sc2k_mod.h`); `mods/stipend` is a worked example.
-
-### Fixed
-
+- Frontend: the File dialog's list scrolls (scroll bar, mouse wheel, and arrow
+  keys after clicking a file). Clicks move the game's keyboard focus, the wheel
+  zooms only over the city, and dialogs' close buttons work. The picture sits
+  right under the menu bar instead of centred.
 - The map's colours after loading a city: a deleted bitmap's handle came back
   for the new map, which was then tinted from the old city's colours.
 - Fog and seasons no longer tint the empty space around the map.
-
-### Added
-
-- Saves menu: five quick-save slots with city name and time, through the
-  game's own Save As / Load City, the dialog answered unseen.
-
-- Play menu: turbo up to 8x (the game's 200 ms timer, shortened; measured 4.0x
-  at 4x), mouse-wheel zoom, autosave for named cities.
-- The frontend is the default; `--classic` shows the game's own windows.
-
-- `--frontend`: the game in the host's own Direct3D 11 window, with upscaling
-  filters (nearest, smooth, sharp bilinear, Scale2x), glow, CRT, fullscreen,
-  and a Dear ImGui menu bar: the game's menus mirrored with live check marks,
-  plus Graphics, Effects, Display, Debug (city stats) and Cheats (funds).
-  Toolbar pop-ups appear as ImGui pop-ups. Settings persist in `sc2k.ini`.
-- `NOTICE` and `LICENSES/imgui.txt` for the vendored Dear ImGui (MIT).
-
-- Day and night, seasons and weather, recoloured per palette entry from the game's
-  own clock and weather, so lights stay lit at night (`fx.c`, docs/effects.md).
-- `sc2k --selftest` for the effect math; `SC2K_WATCH` also shows day, month,
-  weather and funds.
-
-- A hero GIF for the README: NYC, recompiled, with a plane over the harbour.
 
 ## [0.3.0] - 2026-09-29
 
